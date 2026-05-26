@@ -1,0 +1,18 @@
+[
+  {
+    "model":"source_only",
+    "accuracy":0.7428571429,
+    "macro_f1":0.7394540943,
+    "metrics_path":"experiments\/outputs\/classifier_source_only\/metrics.json",
+    "delta_accuracy_vs_source_only":0.0,
+    "delta_macro_f1_vs_source_only":0.0
+  },
+  {
+    "model":"cyclegan_augmented",
+    "accuracy":0.5714285714,
+    "macro_f1":0.5584524811,
+    "metrics_path":"experiments\/outputs\/classifier_cyclegan_augmented\/metrics.json",
+    "delta_accuracy_vs_source_only":-0.1714285714,
+    "delta_macro_f1_vs_source_only":-0.1810016132
+  }
+]

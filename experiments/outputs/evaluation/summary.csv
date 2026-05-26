@@ -1,0 +1,3 @@
+model,accuracy,macro_f1,metrics_path,delta_accuracy_vs_source_only,delta_macro_f1_vs_source_only
+source_only,0.7428571428571429,0.7394540942928041,experiments/outputs/classifier_source_only/metrics.json,0.0,0.0
+cyclegan_augmented,0.5714285714285714,0.5584524810765349,experiments/outputs/classifier_cyclegan_augmented/metrics.json,-0.17142857142857149,-0.18100161321626917
