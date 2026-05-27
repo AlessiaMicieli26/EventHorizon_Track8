@@ -24,6 +24,11 @@ def main() -> None:
     parser.add_argument("--index-csv", default="data/processed/00_prepared/index_prepared.csv")
     parser.add_argument("--out-dir", default="data/processed/01_domain_split")
     parser.add_argument("--source-manufacturer", default="auto")
+    parser.add_argument(
+        "--source-manufacturers",
+        default=None,
+        help="Comma-separated training manufacturers. Use two here for leave-one-manufacturer-out training.",
+    )
     parser.add_argument("--target-manufacturer", default="auto")
     parser.add_argument("--val-size", type=float, default=0.2)
     parser.add_argument("--target-adapt-size", type=float, default=0.5)
@@ -35,12 +40,26 @@ def main() -> None:
     if len(counts) < 2:
         raise RuntimeError("Need at least two scanner manufacturers for domain adaptation.")
 
-    source = counts.index[0] if args.source_manufacturer == "auto" else args.source_manufacturer.upper()
-    target = counts.index[1] if args.target_manufacturer == "auto" else args.target_manufacturer.upper()
-    if source == target:
+    if args.source_manufacturers:
+        sources = [item.strip().upper() for item in args.source_manufacturers.split(",") if item.strip()]
+    else:
+        source = counts.index[0] if args.source_manufacturer == "auto" else args.source_manufacturer.upper()
+        sources = [source]
+
+    if args.target_manufacturer == "auto":
+        target = next((manufacturer for manufacturer in counts.index if manufacturer not in sources), None)
+        if target is None:
+            raise RuntimeError("Could not auto-select a target manufacturer outside the source manufacturers.")
+    else:
+        target = args.target_manufacturer.upper()
+
+    missing = sorted(set(sources + [target]) - set(counts.index))
+    if missing:
+        raise RuntimeError(f"Manufacturers not found in index CSV: {missing}")
+    if target in sources:
         raise RuntimeError("Source and target manufacturers must be different.")
 
-    source_df = df[df["manufacturer"] == source].copy()
+    source_df = df[df["manufacturer"].isin(sources)].copy()
     target_df = df[df["manufacturer"] == target].copy()
     source_train, source_val = patient_split(source_df, args.val_size, args.seed)
     target_adapt, target_test = patient_split(target_df, 1.0 - args.target_adapt_size, args.seed)
@@ -52,7 +71,7 @@ def main() -> None:
     target_adapt.to_csv(out_dir / "target_adapt_unlabeled.csv", index=False)
     target_test.to_csv(out_dir / "target_test.csv", index=False)
 
-    print(f"Source manufacturer: {source}")
+    print(f"Source manufacturers: {', '.join(sources)}")
     print(f"Target manufacturer: {target}")
     for name, split in [
         ("source_train", source_train),

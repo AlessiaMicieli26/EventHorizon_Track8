@@ -38,7 +38,7 @@
 }
 \lstset{style=bashstyle}
 
-\title{\textbf{Domain Adaptation su MRI ADNI con CycleGAN}\\
+\title{\textbf{Domain Adaptation su MRI ADNI con VAE Scanner Signatures e CycleGAN}\\
 \large Relazione tecnica del progetto}
 \author{Gruppo: TBD \qquad Project ID: TBD}
 \date{\today}
@@ -48,7 +48,7 @@
 \maketitle
 
 \begin{abstract}
-Questa relazione descrive il lavoro svolto per costruire una pipeline di domain adaptation su immagini di risonanza magnetica strutturale provenienti da ADNI. Il problema affrontato e' la variazione di dominio causata da scanner e produttori diversi: un classificatore addestrato su scansioni acquisite da un produttore puo' degradare quando viene valutato su immagini acquisite da un altro produttore. La pipeline implementata prepara volumi T1, costruisce split patient-level separando source e target domain per produttore, addestra un classificatore source-only, addestra una CycleGAN per tradurre lo stile delle immagini source verso il target, genera un training set aumentato e confronta le metriche finali sul target test set. Il codice e' stato organizzato secondo la struttura del repository: preprocessing in \texttt{src/datasets}, architetture in \texttt{src/models}, training in \texttt{src/training}, valutazione in \texttt{src/evaluation}, checkpoint in \texttt{experiments/checkpoints}, log in \texttt{experiments/logs} e figure in \texttt{figures}. I risultati ottenuti indicano che, nella configurazione eseguita, il baseline source-only raggiunge accuracy 0.7429 e macro-F1 0.7395 sul target test set, mentre il modello addestrato con dati aumentati tramite CycleGAN raggiunge accuracy 0.5714 e macro-F1 0.5585. La relazione discute quindi non solo l'implementazione, ma anche il fatto che l'adattamento generativo non ha migliorato la generalizzazione in questa run, probabilmente a causa della dimensione ridotta del dataset, dell'uso di sole slice centrali e della semplicita' delle architetture.
+Questa relazione descrive il lavoro svolto per costruire una pipeline di domain adaptation su immagini di risonanza magnetica strutturale provenienti da ADNI. Il problema affrontato e' la variazione di dominio causata da scanner e produttori diversi: un classificatore addestrato su scansioni acquisite da alcuni produttori puo' degradare quando viene valutato su immagini acquisite da un produttore non visto. La pipeline finale prepara volumi T1, costruisce split patient-level usando due produttori come source domain e un terzo produttore come target domain, mantiene una prova con VAE scanner signatures, aggiunge una variante AdaIN per trasferire statistiche di stile scanner nelle feature, integra anche traduzioni CycleGAN e addestra classificatori confrontabili sui training set aumentati. Il codice e' stato organizzato secondo la struttura del repository: preprocessing in \texttt{src/datasets}, architetture in \texttt{src/models}, training in \texttt{src/training}, valutazione in \texttt{src/evaluation}, checkpoint in \texttt{experiments/checkpoints}, log in \texttt{experiments/logs} e figure in \texttt{figures}. Nella run VAE+GAN gia' eseguita, il modello addestrato su SIEMENS e GE MEDICAL SYSTEMS e valutato su PHILIPS MEDICAL SYSTEMS raggiunge accuracy 0.4857 e macro-F1 0.4643 sul target test set. La variante AdaIN e' stata aggiunta per una nuova run comparativa, idealmente da rieseguire su GPU quando CUDA sara' visibile nell'ambiente.
 \end{abstract}
 
 \tableofcontents
@@ -65,25 +65,28 @@ Il progetto realizzato studia questo problema usando scansioni strutturali MRI d
     \item filtra scansioni T1 e classi diagnostiche di interesse;
     \item costruisce split a livello paziente;
     \item considera il produttore dello scanner come dominio;
-    \item addestra un classificatore source-only;
-    \item addestra una CycleGAN per tradurre immagini dal dominio source al target;
-    \item genera un training set aumentato;
-    \item confronta quantitativamente e qualitativamente i risultati.
+    \item usa due produttori per il training e un terzo produttore per il test;
+    \item addestra un VAE per estrarre firme latenti dei macchinari;
+    \item aggiunge AdaIN per trasferire statistiche di stile scanner nelle feature;
+    \item genera immagini sintetiche con entrambe le strategie;
+    \item integra anche traduzioni CycleGAN source-to-target;
+    \item addestra un classificatore sul dataset aumentato;
+    \item confronta quantitativamente i risultati sul produttore non visto.
 \end{enumerate}
 
-La scelta di CycleGAN e' motivata dal fatto che il target domain viene usato senza supervisioni di classe nella fase di adattamento. In altre parole, la traduzione source-to-target puo' essere appresa da coppie non allineate di immagini source e target. Questo e' coerente con molti scenari reali di domain adaptation in cui si possiedono immagini non etichettate dal dominio target, ma non necessariamente annotazioni diagnostiche complete.
+La scelta di confrontare VAE, AdaIN e CycleGAN e' motivata da esigenze complementari. Il VAE consente di lavorare in uno spazio latente compatto, dove il produttore dello scanner puo' essere rappresentato come una firma media. AdaIN interviene invece sulle statistiche di feature, separando piu' esplicitamente contenuto anatomico e stile scanner. La CycleGAN consente infine di produrre una traduzione image-to-image non appaiata verso il dominio target, usando immagini target senza supervisioni di classe. Questo e' coerente con molti scenari reali di domain adaptation in cui si possiedono immagini non etichettate dal dominio target, ma non necessariamente annotazioni diagnostiche complete.
 
 \section{Obiettivo del progetto}
 
-L'obiettivo principale e' valutare se una traduzione di stile tra scanner, appresa con CycleGAN, possa migliorare la classificazione CN vs AD nel target domain rispetto a un baseline addestrato solo sul source domain. Il progetto non mira a proporre un modello clinico pronto all'uso, ma una pipeline sperimentale completa, verificabile e coerente con la struttura richiesta dal repository.
+L'obiettivo principale e' valutare se un training set aumentato con firme sintetiche di scanner, generate tramite VAE o AdaIN, e con traduzioni CycleGAN possa migliorare la classificazione CN vs AD su un produttore non visto. Il progetto non mira a proporre un modello clinico pronto all'uso, ma una pipeline sperimentale completa, verificabile e coerente con la struttura richiesta dal repository.
 
 La domanda sperimentale puo' essere formulata come segue:
 
 \begin{quote}
-Dato un classificatore addestrato su MRI provenienti da scanner SIEMENS, l'aggiunta di slice source tradotte nello stile PHILIPS tramite CycleGAN migliora le prestazioni su un target test set PHILIPS?
+Dato un classificatore addestrato su MRI provenienti da scanner SIEMENS e GE MEDICAL SYSTEMS, quale strategia di augmentation fra VAE scanner signatures, AdaIN scanner signatures e traduzione CycleGAN generalizza meglio su un target test set PHILIPS MEDICAL SYSTEMS?
 \end{quote}
 
-La risposta empirica, nella run attuale, e' negativa: il modello source-only e' risultato migliore del modello aumentato. Questo risultato e' comunque utile, perche' mostra una pipeline funzionante e mette in evidenza limiti tecnici e sperimentali importanti: numero ridotto di campioni, training generativo non supervisionato, uso di una sola slice centrale per volume, assenza di validazione qualitativa clinica e architetture volutamente leggere.
+La risposta empirica, nella run finale, e' che la pipeline e' eseguibile end-to-end ma le prestazioni target rimangono limitate: il modello VAE+GAN-augmented raggiunge accuracy 0.4857 e macro-F1 0.4643 su PHILIPS. Questo risultato e' comunque utile, perche' mostra una pipeline funzionante e mette in evidenza limiti tecnici e sperimentali importanti: numero ridotto di campioni, training generativo non supervisionato, uso di una sola slice centrale per volume, assenza di validazione qualitativa clinica e architetture volutamente leggere.
 
 \section{Organizzazione del repository}
 
@@ -174,10 +177,10 @@ Quando il volume ha valore massimo uguale al minimo, viene restituito un volume 
 
 \section{Split source e target}
 
-Gli split sono creati con \texttt{src/datasets/make\_domain\_splits.py}. Il produttore dello scanner viene usato come dominio. Lo script sceglie automaticamente i due produttori piu' frequenti:
+Gli split sono creati con \texttt{src/datasets/make\_domain\_splits.py}. Il produttore dello scanner viene usato come dominio. Nella pipeline finale lo script e' stato esteso per accettare piu' produttori source, cosi' da addestrare su due macchinari e testare su un terzo produttore lasciato fuori dal training:
 
 \begin{itemize}[leftmargin=1.2cm]
-    \item source domain: \texttt{SIEMENS};
+    \item source domains: \texttt{SIEMENS} e \texttt{GE MEDICAL SYSTEMS};
     \item target domain: \texttt{PHILIPS MEDICAL SYSTEMS}.
 \end{itemize}
 
@@ -190,15 +193,15 @@ Lo split e' patient-level: un soggetto non deve comparire contemporaneamente in 
 \toprule
 Split & Scansioni & Soggetti & Dominio \\
 \midrule
-Source train & 58 & 17 & Siemens \\
-Source validation & 17 & 5 & Siemens \\
+Source train & 81 & 24 & Siemens + GE \\
+Source validation & 21 & 7 & Siemens + GE \\
 Target adaptation unlabeled & 36 & 10 & Philips \\
 Target test & 35 & 11 & Philips \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-La parte target adaptation viene usata per addestrare la CycleGAN come dominio target non etichettato. Il target test set viene mantenuto separato e usato solo per la valutazione finale dei classificatori.
+La parte target adaptation viene usata per addestrare o applicare la componente CycleGAN come dominio target non etichettato. Il target test set viene mantenuto separato e usato solo per la valutazione finale dei classificatori.
 
 \section{Architetture implementate}
 
@@ -218,6 +221,56 @@ Il classificatore e' definito in \texttt{src/models/classifier.py}. Si tratta di
 \end{itemize}
 
 L'uso di una rete leggera e' stato scelto per rendere il training praticabile localmente e per mantenere la pipeline semplice. Il limite principale e' che una singola slice centrale non rappresenta tutta l'informazione volumetrica del cervello. Un miglioramento naturale sarebbe passare a modelli 2.5D o 3D.
+
+\subsection{VAE per firme latenti di scanner}
+
+La componente VAE e' definita in \texttt{src/models/vae.py} e addestrata con \texttt{src/training/train\_vae\_signature.py}. L'obiettivo non e' classificare direttamente la malattia, ma proiettare le slice MRI in uno spazio latente in cui sia possibile stimare una firma media per ciascun produttore source.
+
+Il modello usa un encoder convoluzionale che produce media e log-varianza:
+
+\[
+q_\phi(z|x) = \mathcal{N}(\mu_\phi(x), \sigma_\phi(x)^2)
+\]
+
+Il decoder ricostruisce la slice a partire dal vettore latente campionato. La loss e':
+
+\[
+\mathcal{L}_{VAE} = \mathcal{L}_{rec} + \beta \mathcal{L}_{KL}
+\]
+
+dove \(\mathcal{L}_{rec}\) e' la mean squared error fra ricostruzione e input, mentre \(\mathcal{L}_{KL}\) regolarizza la distribuzione latente verso una normale standard. Nella run finale sono state usate 40 epoche, batch size 8, latent dimension 64 e \(\beta = 10^{-3}\).
+
+Dopo il training, per ogni produttore \(m\) viene calcolata una firma media:
+
+\[
+s_m = \frac{1}{N_m}\sum_{i=1}^{N_m}\mu_\phi(x_i)
+\]
+
+Per generare una versione sintetica di una immagine source \(x\), si codifica l'immagine in \(z\), si somma la direzione fra la firma target e quella source e si decodifica:
+
+\[
+z' = z + \alpha(s_{target} - s_{source}) + \epsilon
+\]
+
+\[
+\hat{x} = Decoder(z')
+\]
+
+Questa operazione implementa l'idea di ``sommare vettori con immagini estratte con firme sintetiche'': l'immagine originale fornisce il contenuto anatomico, mentre la direzione latente approssima la variazione di scanner.
+
+\subsection{AdaIN per firme di stile scanner}
+
+La variante AdaIN e' definita in \texttt{src/models/adain.py}, addestrata con \texttt{src/training/train\_adain\_signature.py} e applicata con \texttt{src/training/generate\_adain\_augmented.py}. L'idea e' evitare di chiedere al modello di generare tutta l'immagine partendo da un vettore latente globale, come nel VAE, e trasferire invece lo stile scanner tramite statistiche di feature.
+
+Dato un tensore di feature \(f\), AdaIN normalizza il contenuto e lo ri-scala con media e deviazione standard dello stile target:
+
+\[
+AdaIN(f, \mu_s, \sigma_s) = \sigma_s \frac{f - \mu(f)}{\sigma(f)} + \mu_s
+\]
+
+Nel nostro caso \(\mu_s\) e \(\sigma_s\) sono calcolate come firme medie per produttore sulle feature dell'encoder. Il decoder ricostruisce poi la slice a partire dalle feature con statistiche target. Rispetto al VAE, questa formulazione e' piu' coerente con l'ipotesi che anatomia e scanner style siano fattori separabili: il contenuto resta nelle feature normalizzate, mentre il produttore agisce su media e varianza canale per canale.
+
+La pipeline AdaIN produce un CSV dedicato, \texttt{data/processed/05\_adain\_signature\_augmented/source\_train\_adain\_signature\_augmented.csv}, che puo' essere fuso con le traduzioni GAN nello stesso modo del dataset VAE. Il classificatore risultante viene salvato in \texttt{experiments/outputs/classifier\_adain\_gan\_augmented}, cosi' da confrontarlo direttamente con \texttt{classifier\_signature\_gan\_augmented}.
 
 \subsection{CycleGAN}
 
@@ -280,7 +333,7 @@ Inizialmente alcune definizioni modello erano dentro gli script di training. Per
 
 \section{Pipeline sperimentale}
 
-La pipeline eseguita e' composta da otto fasi principali.
+La pipeline finale e' composta da una fase comune di preparazione/split e da due rami confrontabili: VAE+GAN e AdaIN+GAN. Le fasi iniziali di estrazione e preparazione dei volumi rimangono invariate rispetto alla pipeline CycleGAN originale; la parte nuova riguarda split con due produttori source, generazione di firme sintetiche con VAE o AdaIN e fusione con le traduzioni GAN.
 
 \subsection{Estrazione dati}
 
@@ -301,7 +354,7 @@ Il conteggio finale e' stato:
 \subsection{Preparazione volumi}
 
 \begin{lstlisting}[language=bash]
-python src/datasets/prepare_adni.py \
+python3 src/datasets/prepare_adni.py \
   --csv data/ADNI1_Annual_2_Yr_3T_5_26_2026.csv \
   --nifti-root data/raw/nifti \
   --metadata-root data/raw/metadata \
@@ -319,29 +372,69 @@ data/processed/00_prepared/index_prepared.csv
 \subsection{Split domini}
 
 \begin{lstlisting}[language=bash]
-python src/datasets/make_domain_splits.py \
+python3 src/datasets/make_domain_splits.py \
   --index-csv data/processed/00_prepared/index_prepared.csv \
+  --source-manufacturers "SIEMENS,GE MEDICAL SYSTEMS" \
+  --target-manufacturer "PHILIPS MEDICAL SYSTEMS" \
   --out-dir data/processed/01_domain_split
 \end{lstlisting}
 
-\subsection{Training baseline source-only}
+\subsection{Training VAE scanner signatures}
 
 \begin{lstlisting}[language=bash]
-python src/training/train_classifier.py \
+python3 src/training/train_vae_signature.py \
   --train-csv data/processed/01_domain_split/source_train.csv \
-  --val-csv data/processed/01_domain_split/source_val.csv \
-  --test-csv data/processed/01_domain_split/target_test.csv \
-  --out-dir experiments/outputs/classifier_source_only \
+  --out-dir experiments/outputs/vae_signature \
   --checkpoint-dir experiments/checkpoints \
-  --checkpoint-name classifier_source_only_best_model.pt \
-  --epochs 20 \
+  --checkpoint-name vae_signature.pt \
+  --epochs 40 \
   --batch-size 8
 \end{lstlisting}
+
+\subsection{Generazione immagini con firme sintetiche}
+
+\begin{lstlisting}[language=bash]
+python3 src/training/generate_signature_augmented.py \
+  --source-csv data/processed/01_domain_split/source_train.csv \
+  --vae experiments/checkpoints/vae_signature.pt \
+  --out-dir data/processed/03_vae_signature_augmented \
+  --include-original \
+  --copies-per-target 1 \
+  --alpha 1.0 \
+  --noise-scale 0.25
+\end{lstlisting}
+
+Il risultato e' un CSV con 162 righe dati: 81 slice originali e 81 slice sintetiche ottenute trasferendo la firma latente fra i due produttori source.
+
+\subsection{Training AdaIN scanner signatures}
+
+\begin{lstlisting}[language=bash]
+python3 src/training/train_adain_signature.py \
+  --train-csv data/processed/01_domain_split/source_train.csv \
+  --out-dir experiments/outputs/adain_signature \
+  --checkpoint-dir experiments/checkpoints \
+  --checkpoint-name adain_signature.pt \
+  --epochs 40 \
+  --batch-size 8
+\end{lstlisting}
+
+\subsection{Generazione immagini con AdaIN}
+
+\begin{lstlisting}[language=bash]
+python3 src/training/generate_adain_augmented.py \
+  --source-csv data/processed/01_domain_split/source_train.csv \
+  --adain experiments/checkpoints/adain_signature.pt \
+  --out-dir data/processed/05_adain_signature_augmented \
+  --include-original \
+  --alpha 1.0
+\end{lstlisting}
+
+Il risultato atteso e' un CSV analogo a quello VAE, con 81 slice originali e 81 slice sintetiche prodotte sostituendo le statistiche di stile scanner nelle feature.
 
 \subsection{Training CycleGAN}
 
 \begin{lstlisting}[language=bash]
-python src/training/train_cyclegan.py \
+python3 src/training/train_cyclegan.py \
   --source-csv data/processed/01_domain_split/source_train.csv \
   --target-csv data/processed/01_domain_split/target_adapt_unlabeled.csv \
   --out-dir experiments/outputs/cyclegan_scanner \
@@ -353,40 +446,75 @@ python src/training/train_cyclegan.py \
 \subsection{Traduzione source-to-target}
 
 \begin{lstlisting}[language=bash]
-python -m src.training.translate_source \
+python3 -m src.training.translate_source \
   --source-csv data/processed/01_domain_split/source_train.csv \
   --generator experiments/checkpoints/cyclegan_generator_source_to_target.pt \
   --out-dir data/processed/02_translated_source
 \end{lstlisting}
 
-\subsection{Training set aumentato}
+\subsection{Training set aumentato VAE+GAN}
 
 \begin{lstlisting}[language=bash]
-python src/datasets/build_augmented_train.py \
-  --source-csv data/processed/01_domain_split/source_train.csv \
+python3 src/datasets/build_augmented_train.py \
+  --source-csv data/processed/03_vae_signature_augmented/source_train_vae_signature_augmented.csv \
   --translated-csv data/processed/02_translated_source/translated_source_train.csv \
-  --out-csv data/processed/02_translated_source/source_train_augmented.csv
+  --out-csv data/processed/04_signature_gan_augmented/source_train_signature_gan_augmented.csv
 \end{lstlisting}
 
-Il training set aumentato contiene 116 righe: 58 esempi source originali e 58 slice tradotte.
+Il training set aumentato finale contiene 243 righe dati: 81 esempi source originali, 81 esempi sintetici VAE e 81 slice tradotte tramite GAN.
 
-\subsection{Training classificatore aumentato}
+\subsection{Training set aumentato AdaIN+GAN}
 
 \begin{lstlisting}[language=bash]
-python src/training/train_classifier.py \
-  --train-csv data/processed/02_translated_source/source_train_augmented.csv \
+python3 src/datasets/build_augmented_train.py \
+  --source-csv data/processed/05_adain_signature_augmented/source_train_adain_signature_augmented.csv \
+  --translated-csv data/processed/02_translated_source/translated_source_train.csv \
+  --out-csv data/processed/06_adain_gan_augmented/source_train_adain_gan_augmented.csv
+\end{lstlisting}
+
+\subsection{Training classificatore finale}
+
+\begin{lstlisting}[language=bash]
+python3 src/training/train_classifier.py \
+  --train-csv data/processed/04_signature_gan_augmented/source_train_signature_gan_augmented.csv \
   --val-csv data/processed/01_domain_split/source_val.csv \
   --test-csv data/processed/01_domain_split/target_test.csv \
-  --out-dir experiments/outputs/classifier_cyclegan_augmented \
+  --out-dir experiments/outputs/classifier_signature_gan_augmented \
   --checkpoint-dir experiments/checkpoints \
-  --checkpoint-name classifier_cyclegan_augmented_best_model.pt \
+  --checkpoint-name classifier_signature_gan_augmented_best_model.pt \
   --epochs 20 \
   --batch-size 8
 \end{lstlisting}
 
+Per il confronto AdaIN si usa lo stesso protocollo, cambiando solo il CSV di training e la directory di output:
+
+\begin{lstlisting}[language=bash]
+python3 src/training/train_classifier.py \
+  --train-csv data/processed/06_adain_gan_augmented/source_train_adain_gan_augmented.csv \
+  --val-csv data/processed/01_domain_split/source_val.csv \
+  --test-csv data/processed/01_domain_split/target_test.csv \
+  --out-dir experiments/outputs/classifier_adain_gan_augmented \
+  --checkpoint-dir experiments/checkpoints \
+  --checkpoint-name classifier_adain_gan_augmented_best_model.pt \
+  --epochs 20 \
+  --batch-size 8
+\end{lstlisting}
+
+\subsection{Ambiente di esecuzione}
+
+Gli script PyTorch selezionano automaticamente CUDA quando disponibile. Nell'ambiente usato per la run finale, pero', PyTorch non vedeva dispositivi GPU:
+
+\begin{lstlisting}
+torch 2.2.2+cu121
+cuda_available False
+device_count 0
+\end{lstlisting}
+
+Di conseguenza il training e' stato eseguito su CPU. Il training VAE e il classificatore finale sono stati completati; per la componente CycleGAN e' stato usato il checkpoint gia' disponibile in \texttt{experiments/checkpoints/cyclegan\_generator\_source\_to\_target.pt}, poiche' un nuovo training completo su CPU non ha prodotto un checkpoint utilizzabile entro la sessione.
+
 \section{Valutazione}
 
-La valutazione e' implementata in \texttt{src/evaluation/evaluate\_pipeline.py}. Lo script confronta i file \texttt{metrics.json} dei due classificatori e produce:
+La valutazione del classificatore finale viene salvata direttamente in \texttt{experiments/outputs/classifier\_signature\_gan\_augmented/metrics.json}. Lo script \texttt{src/evaluation/evaluate\_pipeline.py} resta disponibile per confronti fra baseline e modelli aumentati e produce:
 
 \begin{itemize}[leftmargin=1.2cm]
     \item \texttt{experiments/outputs/evaluation/summary.csv};
@@ -401,90 +529,82 @@ Le metriche principali sono accuracy e macro-F1. La macro-F1 e' particolarmente 
 
 \begin{table}[H]
 \centering
-\caption{Confronto finale sul target test set Philips.}
-\begin{tabular}{lrrrr}
+\caption{Risultato disponibile sul target test set Philips. La riga AdaIN+GAN verra' popolata dopo la run completa su GPU.}
+\begin{tabular}{lrr}
 \toprule
-Modello & Accuracy & Macro-F1 & Delta Accuracy & Delta Macro-F1 \\
+Modello & Accuracy & Macro-F1 \\
 \midrule
-Source-only & 0.7429 & 0.7395 & 0.0000 & 0.0000 \\
-CycleGAN-augmented & 0.5714 & 0.5585 & -0.1714 & -0.1810 \\
+VAE+GAN-augmented & 0.4857 & 0.4643 \\
+AdaIN+GAN-augmented & TBD & TBD \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Il baseline source-only supera il modello aumentato sia in accuracy sia in macro-F1. In particolare, la differenza e':
-
-\[
-\Delta Accuracy = -0.1714
-\]
-
-\[
-\Delta MacroF1 = -0.1810
-\]
-
-Questo significa che, nella configurazione eseguita, l'aggiunta delle immagini tradotte non ha aiutato la generalizzazione verso il target domain.
+Il modello VAE+GAN e' stato addestrato su un training set da 243 righe dati: 81 slice source originali, 81 slice sintetiche generate tramite firme VAE e 81 slice tradotte tramite GAN. La valutazione e' stata eseguita solo sul target test set PHILIPS, composto da 35 scansioni non usate per il training. La variante AdaIN+GAN usa la stessa cardinalita' attesa e lo stesso protocollo, ma deve essere rieseguita completamente dopo il ripristino della GPU.
 
 \begin{table}[H]
 \centering
-\caption{Metriche per classe del modello source-only. Classe 0: disease, classe 1: healthy.}
+\caption{Metriche per classe del modello VAE+GAN-augmented. Classe 0: disease, classe 1: healthy.}
 \begin{tabular}{lrrrr}
 \toprule
 Classe & Precision & Recall & F1-score & Support \\
 \midrule
-Disease & 0.5789 & 0.9167 & 0.7097 & 12 \\
-Healthy & 0.9375 & 0.6522 & 0.7692 & 23 \\
+Disease & 0.3125 & 0.4167 & 0.3571 & 12 \\
+Healthy & 0.6316 & 0.5217 & 0.5714 & 23 \\
 \midrule
-Macro avg & 0.7582 & 0.7844 & 0.7395 & 35 \\
+Macro avg & 0.4720 & 0.4692 & 0.4643 & 35 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[H]
 \centering
-\caption{Metriche per classe del modello CycleGAN-augmented. Classe 0: disease, classe 1: healthy.}
-\begin{tabular}{lrrrr}
+\caption{Dimensione dei dataset intermedi nella pipeline finale.}
+\begin{tabular}{lr}
 \toprule
-Classe & Precision & Recall & F1-score & Support \\
+Artefatto & Righe dati \\
 \midrule
-Disease & 0.4118 & 0.5833 & 0.4828 & 12 \\
-Healthy & 0.7222 & 0.5652 & 0.6341 & 23 \\
-\midrule
-Macro avg & 0.5670 & 0.5743 & 0.5585 & 35 \\
+\texttt{source\_train.csv} & 81 \\
+\texttt{source\_train\_vae\_signature\_augmented.csv} & 162 \\
+\texttt{translated\_source\_train.csv} & 81 \\
+\texttt{source\_train\_signature\_gan\_augmented.csv} & 243 \\
+\texttt{source\_train\_adain\_signature\_augmented.csv} & 162 attese \\
+\texttt{source\_train\_adain\_gan\_augmented.csv} & 243 attese \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \section{Scatterplot delle metriche}
 
-La Figura~\ref{fig:scatter} mostra il confronto fra accuracy e macro-F1. La posizione del modello source-only e' piu' vicina all'angolo alto a destra, indicando prestazioni migliori su entrambe le metriche.
+La Figura~\ref{fig:scatter} appartiene alla precedente valutazione source-only vs CycleGAN-augmented ed e' mantenuta come artefatto di confronto storico. Per la pipeline finale VAE+GAN la metrica primaria e' il file \texttt{metrics.json} del classificatore finale.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.72\textwidth]{../figures/metric_scatter_accuracy_f1.png}
+    \includegraphics[width=0.72\textwidth]{../figures/01.png}
     \caption{Scatterplot accuracy/macro-F1 dei due modelli valutati sul target test set.}
     \label{fig:scatter}
 \end{figure}
 
 \section{Curve temporali del classificatore}
 
-La Figura~\ref{fig:classifier_curves} confronta loss, validation accuracy e validation macro-F1 dei due training del classificatore. La curva source-only mostra una maggiore instabilita' nelle epoche intermedie ma raggiunge picchi di validazione piu' alti. Il modello aumentato raggiunge un massimo di validation macro-F1 pari a 0.7424 alla sedicesima epoca, ma non trasferisce questo vantaggio al target test set.
+La Figura~\ref{fig:classifier_curves} confronta loss, validation accuracy e validation macro-F1 dei training precedenti del classificatore. Nella run finale VAE+GAN, il miglior checkpoint e' stato selezionato sulla validation macro-F1 del source validation set. Il target test set e' rimasto separato fino alla valutazione finale.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{../figures/classifier_temporal_metrics.png}
-    \caption{Curve temporali di loss, validation accuracy e validation macro-F1 per source-only e CycleGAN-augmented.}
+    \includegraphics[width=\textwidth]{../figures/02.png}
+    \caption{Curve temporali di loss, validation accuracy e validation macro-F1 per esperimenti precedenti source-only e CycleGAN-augmented.}
     \label{fig:classifier_curves}
 \end{figure}
 
-Una possibile interpretazione e' che la validazione, essendo ancora nel source domain Siemens, non misura direttamente il miglioramento sul target Philips. Il modello puo' apparire buono in validazione source ma non necessariamente generalizzare al target.
+Una possibile interpretazione generale e' che la validazione, essendo ancora nel source domain, non misura direttamente il miglioramento sul target Philips. Il modello puo' apparire buono in validazione source ma non necessariamente generalizzare al target.
 
 \section{Curve temporali della CycleGAN}
 
-La Figura~\ref{fig:cyclegan_curves} mostra le loss del generatore e del discriminatore durante le 30 epoche di CycleGAN. La generator loss scende rapidamente nelle prime epoche, passando da circa 3.28 a valori intorno a 1.0. La discriminator loss rimane invece relativamente stabile.
+La Figura~\ref{fig:cyclegan_curves} mostra le loss del generatore e del discriminatore dell'esperimento CycleGAN precedente. Nella run finale e' stato riusato il checkpoint gia' disponibile per generare le traduzioni source-to-target.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.88\textwidth]{../figures/cyclegan_temporal_losses.png}
+    \includegraphics[width=0.88\textwidth]{../figures/03.png}
     \caption{Loss generator/discriminator della CycleGAN durante il training.}
     \label{fig:cyclegan_curves}
 \end{figure}
@@ -493,30 +613,30 @@ La stabilita' numerica della loss non implica automaticamente che la traduzione 
 
 \section{Preview qualitative delle immagini modificate}
 
-La Figura~\ref{fig:qualitative} mostra esempi qualitativi di slice source originali, slice tradotte e differenza assoluta. Queste immagini consentono di verificare se il generatore produce modifiche visibili e dove esse si concentrano.
+La Figura~\ref{fig:signature_gan_qualitative} mostra nuove preview qualitative generate per la pipeline finale VAE+GAN. Ogni riga confronta la slice originale, la versione sintetica prodotta applicando una firma latente VAE, la differenza assoluta fra VAE e originale, la traduzione GAN e la differenza assoluta fra GAN e originale.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.82\textwidth]{../figures/qualitative_translation_previews.png}
-    \caption{Preview qualitative: originale source, traduzione CycleGAN e differenza assoluta.}
-    \label{fig:qualitative}
+    \includegraphics[width=\textwidth]{../figures/05.png}
+    \caption{Preview qualitative della pipeline finale: originale, firma VAE sintetica, differenza VAE, traduzione GAN e differenza GAN.}
+    \label{fig:signature_gan_qualitative}
 \end{figure}
 
-Le differenze assolute mostrano che la trasformazione modifica la distribuzione visuale delle slice. Tuttavia, l'effetto non garantisce un miglioramento diagnostico. Per un uso piu' rigoroso sarebbe necessario controllare che la traduzione preservi strutture anatomiche e non introduca artefatti.
+Queste preview non costituiscono una validazione clinica, ma permettono di controllare visivamente se le trasformazioni sono localizzate e se introducono artefatti evidenti. Nella run finale si osserva che le immagini prodotte dalla firma VAE risultano molto uniformi e poco informative rispetto all'originale, mentre le traduzioni GAN preservano maggiormente la struttura anatomica. Questo suggerisce che il VAE addestrato su pochi campioni non ha ancora imparato una rappresentazione generativa sufficientemente ricca per produrre immagini sintetiche realistiche. Un'analisi piu' rigorosa dovrebbe includere controlli anatomici e metriche quantitative di preservazione strutturale.
 
 \section{Discussione dei risultati}
 
-Il risultato principale e' che il baseline source-only ha ottenuto prestazioni migliori del modello CycleGAN-augmented. Questo puo' sembrare controintuitivo, perche' l'adattamento di dominio dovrebbe teoricamente ridurre il gap fra Siemens e Philips. Tuttavia, ci sono varie ragioni tecniche per cui cio' puo' accadere.
+Il risultato principale della pipeline finale e' che il classificatore VAE+GAN-augmented raggiunge prestazioni moderate sul produttore non visto: accuracy 0.4857 e macro-F1 0.4643. La classe healthy ottiene F1-score 0.5714, mentre la classe disease si ferma a 0.3571. Questo indica che il modello fatica soprattutto sulla classe patologica, che e' anche meno numerosa nel target test set.
 
-Primo, il dataset e' piccolo. Il source train contiene 58 scansioni, e il target adaptation set 36 scansioni. Per addestrare una CycleGAN, questi numeri sono molto limitati. Il modello generativo puo' imparare trasformazioni superficiali o instabili invece di una vera mappatura robusta fra domini.
+Primo, il dataset e' piccolo. Il source train contiene 81 scansioni, e il target adaptation set 36 scansioni. Per addestrare modelli generativi, questi numeri sono molto limitati. Il VAE puo' stimare firme latenti rumorose, mentre la CycleGAN puo' imparare trasformazioni superficiali o instabili invece di una vera mappatura robusta fra domini.
 
 Secondo, la pipeline usa solo la slice centrale di ogni volume. Questa scelta rende il training piu' leggero, ma riduce drasticamente l'informazione anatomica. La diagnosi CN vs AD puo' dipendere da pattern volumetrici distribuiti, non sempre visibili nella sola slice centrale.
 
-Terzo, le immagini generate vengono usate come augmentation accanto agli originali, ma non c'e' una selezione qualitativa o quantitativa delle traduzioni. Se alcune immagini tradotte contengono artefatti, il classificatore puo' apprendere segnali non utili.
+Terzo, le immagini generate vengono usate come augmentation accanto agli originali, ma non c'e' una selezione qualitativa o quantitativa automatica delle traduzioni. La figura qualitativa mostra che le immagini VAE sintetiche sono deboli dal punto di vista visivo; questo puo' introdurre esempi poco realistici nel training set e spiegare parte delle prestazioni limitate del classificatore finale.
 
-Quarto, la validazione del classificatore viene fatta su \texttt{source\_val}, quindi su Siemens. Questo puo' favorire il modello source-only e non fornire una stima diretta delle prestazioni target. Una possibile estensione sarebbe usare una piccola porzione target etichettata come validation, se disponibile e coerente con il protocollo sperimentale.
+Quarto, la validazione del classificatore viene fatta su \texttt{source\_val}, quindi su Siemens e GE. Questo non fornisce una stima diretta delle prestazioni target su Philips. Una possibile estensione sarebbe usare una piccola porzione target etichettata come validation, se disponibile e coerente con il protocollo sperimentale.
 
-Quinto, la CycleGAN non e' vincolata da una loss diagnostica. Essa ottimizza plausibilita' visuale e consistenza ciclica, ma non necessariamente preserva caratteristiche legate alla malattia. In ambito medico, questa distinzione e' cruciale.
+Quinto, ne' il VAE ne' la CycleGAN sono vincolati da una loss diagnostica. Essi ottimizzano ricostruzione, regolarizzazione latente, plausibilita' visuale e consistenza ciclica, ma non necessariamente preservano caratteristiche legate alla malattia. In ambito medico, questa distinzione e' cruciale.
 
 \section{Checkpoint e artefatti prodotti}
 
@@ -525,27 +645,39 @@ I checkpoint sono stati salvati in \texttt{experiments/checkpoints}, come richie
 \begin{itemize}[leftmargin=1.2cm]
     \item \texttt{classifier\_source\_only\_best\_model.pt};
     \item \texttt{classifier\_source\_only\_best\_model\_labels.json};
+    \item \texttt{vae\_signature.pt};
+    \item \texttt{adain\_signature.pt} (dopo la run AdaIN completa);
     \item \texttt{cyclegan\_generator\_source\_to\_target.pt};
     \item \texttt{cyclegan\_generator\_target\_to\_source.pt};
     \item \texttt{classifier\_cyclegan\_augmented\_best\_model.pt};
-    \item \texttt{classifier\_cyclegan\_augmented\_best\_model\_labels.json}.
+    \item \texttt{classifier\_cyclegan\_augmented\_best\_model\_labels.json};
+    \item \texttt{classifier\_signature\_gan\_augmented\_best\_model.pt};
+    \item \texttt{classifier\_signature\_gan\_augmented\_best\_model\_labels.json};
+    \item \texttt{classifier\_adain\_gan\_augmented\_best\_model.pt} (dopo la run AdaIN completa).
 \end{itemize}
 
-I log delle curve sono stati salvati in \texttt{experiments/logs}:
+Gli output principali della run finale sono:
 
 \begin{itemize}[leftmargin=1.2cm]
-    \item \texttt{classifier\_source\_only\_history.csv};
-    \item \texttt{classifier\_cyclegan\_augmented\_history.csv};
-    \item \texttt{cyclegan\_scanner\_history.csv}.
+    \item \texttt{experiments/outputs/vae\_signature/vae\_signature.pt};
+    \item \texttt{experiments/outputs/vae\_signature/scanner\_signatures.pt};
+    \item \texttt{experiments/outputs/vae\_signature/manifest.json};
+    \item \texttt{experiments/outputs/adain\_signature/manifest.json} (dopo la run AdaIN completa);
+    \item \texttt{data/processed/03\_vae\_signature\_augmented/source\_train\_vae\_signature\_augmented.csv};
+    \item \texttt{data/processed/05\_adain\_signature\_augmented/source\_train\_adain\_signature\_augmented.csv};
+    \item \texttt{data/processed/04\_signature\_gan\_augmented/source\_train\_signature\_gan\_augmented.csv};
+    \item \texttt{data/processed/06\_adain\_gan\_augmented/source\_train\_adain\_gan\_augmented.csv};
+    \item \texttt{experiments/outputs/classifier\_signature\_gan\_augmented/metrics.json}.
 \end{itemize}
 
-Le figure sono state salvate in \texttt{figures}:
+I log e le figure degli esperimenti precedenti sono mantenuti in \texttt{experiments/logs} e \texttt{figures}. Per la pipeline finale e' stata generata anche una nuova figura qualitativa:
 
 \begin{itemize}[leftmargin=1.2cm]
-    \item \texttt{metric\_scatter\_accuracy\_f1.png};
-    \item \texttt{classifier\_temporal\_metrics.png};
-    \item \texttt{cyclegan\_temporal\_losses.png};
-    \item \texttt{qualitative\_translation\_previews.png}.
+    \item \texttt{01.png};
+    \item \texttt{02.png};
+    \item \texttt{03.png};
+    \item \texttt{04.png} (pipeline CycleGAN precedente);
+    \item \texttt{05.png} (pipeline VAE+GAN finale).
 \end{itemize}
 
 \section{Riproducibilita'}
@@ -568,6 +700,15 @@ Parametro & Valore \\
 Classifier epochs & 20 \\
 Classifier batch size & 8 \\
 Classifier learning rate & 0.001 \\
+VAE epochs & 40 \\
+VAE batch size & 8 \\
+VAE latent dimension & 64 \\
+VAE beta & 0.001 \\
+VAE signature alpha & 1.0 \\
+VAE signature noise scale & 0.25 \\
+AdaIN epochs & 40 \\
+AdaIN batch size & 8 \\
+AdaIN alpha & 1.0 \\
 CycleGAN epochs & 30 \\
 CycleGAN batch size & 4 \\
 CycleGAN learning rate & 0.0002 \\
@@ -582,13 +723,17 @@ Per riprodurre la pipeline completa, l'ordine corretto e':
 \begin{enumerate}[leftmargin=1.2cm]
     \item estrazione archivi in \texttt{data/raw};
     \item preparazione ADNI;
-    \item split source/target;
-    \item training source-only;
-    \item training CycleGAN;
+    \item split con SIEMENS e GE come source e PHILIPS come target;
+    \item training VAE scanner signatures;
+    \item generazione immagini con firme sintetiche;
+    \item training AdaIN scanner signatures;
+    \item generazione immagini con AdaIN;
+    \item training o riuso checkpoint CycleGAN;
     \item traduzione source;
-    \item costruzione training set aumentato;
-    \item training classificatore aumentato;
-    \item evaluation e generazione figure.
+    \item costruzione training set aumentato VAE+GAN;
+    \item costruzione training set aumentato AdaIN+GAN;
+    \item training dei classificatori finali VAE+GAN e AdaIN+GAN;
+    \item evaluation e generazione della figura qualitativa finale.
 \end{enumerate}
 
 \section{Limiti}
@@ -603,13 +748,13 @@ Il numero di campioni e' ridotto. In particolare, il target test set contiene so
 
 La pipeline usa la slice centrale del volume, non tutto il volume 3D. Questo semplifica il training ma limita fortemente la rappresentazione anatomica.
 
-\subsection{CycleGAN non supervisionata}
+\subsection{Modelli generativi non supervisionati}
 
-La CycleGAN non riceve informazione diagnostica. Essa puo' imparare trasformazioni di intensita' o texture che non sono necessariamente utili alla classificazione.
+Il VAE e la CycleGAN non ricevono informazione diagnostica. Essi possono imparare trasformazioni di intensita', texture o distribuzione latente che non sono necessariamente utili alla classificazione.
 
 \subsection{Valutazione qualitativa non clinica}
 
-Le preview qualitative mostrano differenze visive, ma non costituiscono una validazione clinica. Per un progetto medico reale servirebbe un controllo piu' approfondito degli artefatti.
+Le preview qualitative mostrano differenze visive, ma non costituiscono una validazione clinica. Per un progetto medico reale servirebbe un controllo piu' approfondito degli artefatti e della preservazione anatomica.
 
 \subsection{Assenza di confronti multipli}
 
@@ -623,21 +768,21 @@ Le estensioni piu' utili sono:
     \item usare modelli 3D o 2.5D invece della sola slice centrale;
     \item aggiungere data augmentation geometrica e di intensita';
     \item usare una validazione target etichettata se disponibile;
-    \item confrontare CycleGAN con metodi di feature-level adaptation;
+    \item confrontare VAE+CycleGAN con metodi di feature-level adaptation;
     \item aggiungere metriche di qualita' delle immagini generate;
     \item visualizzare embedding prima e dopo adattamento;
     \item eseguire piu' seed e riportare media e deviazione standard;
-    \item usare scanner GE come ulteriore dominio di test;
+    \item ruotare i produttori e usare a turno Siemens, GE e Philips come dominio di test;
     \item introdurre early stopping basato su una metrica piu' coerente con il target domain.
 \end{itemize}
 
 \section{Conclusione}
 
-Il progetto ha prodotto una pipeline completa e riproducibile per studiare domain adaptation su MRI ADNI. Sono stati implementati preprocessing, split patient-level per dominio scanner, classificatore baseline, CycleGAN, traduzione source-to-target, training aumentato, evaluation quantitativa e figure qualitative.
+Il progetto ha prodotto una pipeline completa e riproducibile per studiare domain adaptation su MRI ADNI. Sono stati implementati preprocessing, split patient-level per dominio scanner, VAE per firme latenti di macchinari, generazione di immagini sintetiche, traduzione CycleGAN, training aumentato VAE+GAN, evaluation quantitativa e nuova figura qualitativa della pipeline finale.
 
-Il risultato finale e' che il modello source-only ha ottenuto performance superiori al modello CycleGAN-augmented sul target test set Philips. Questo non invalida la pipeline: al contrario, fornisce un risultato sperimentale chiaro e utile. La traduzione generativa, nella configurazione attuale, non e' sufficiente a migliorare la classificazione. La causa piu' probabile e' la combinazione di dataset piccolo, uso di sole slice centrali e training CycleGAN non supervisionato rispetto al task diagnostico.
+Il risultato finale e' che il modello VAE+GAN-augmented addestrato su SIEMENS e GE MEDICAL SYSTEMS raggiunge accuracy 0.4857 e macro-F1 0.4643 sul target test set PHILIPS MEDICAL SYSTEMS. Questo non invalida la pipeline: al contrario, fornisce un risultato sperimentale chiaro e utile. L'aumento generativo, nella configurazione attuale, non e' sufficiente a ottenere una generalizzazione robusta. La causa piu' probabile e' la combinazione di dataset piccolo, uso di sole slice centrali e training generativo non supervisionato rispetto al task diagnostico.
 
-Il lavoro svolto costituisce quindi una base solida per esperimenti successivi. La struttura del codice e' stata organizzata secondo le responsabilita' del repository, gli artefatti sono stati salvati nelle cartelle corrette e le figure richieste sono generate automaticamente dallo script di evaluation.
+Il lavoro svolto costituisce quindi una base solida per esperimenti successivi. La struttura del codice e' stata organizzata secondo le responsabilita' del repository, gli artefatti sono stati salvati nelle cartelle corrette e la figura qualitativa finale e' stata prodotta in \texttt{figures/05.png}.
 
 \newpage
 \appendix
@@ -653,47 +798,91 @@ python src/datasets/prepare_adni.py \
   --field 3T \
   --label-mode cn_vs_ad
 
-python src/datasets/make_domain_splits.py \
+python3 src/datasets/make_domain_splits.py \
   --index-csv data/processed/00_prepared/index_prepared.csv \
+  --source-manufacturers "SIEMENS,GE MEDICAL SYSTEMS" \
+  --target-manufacturer "PHILIPS MEDICAL SYSTEMS" \
   --out-dir data/processed/01_domain_split
 
-python src/training/train_classifier.py \
+python3 src/training/train_vae_signature.py \
   --train-csv data/processed/01_domain_split/source_train.csv \
-  --val-csv data/processed/01_domain_split/source_val.csv \
-  --test-csv data/processed/01_domain_split/target_test.csv \
-  --out-dir experiments/outputs/classifier_source_only \
+  --out-dir experiments/outputs/vae_signature \
   --checkpoint-dir experiments/checkpoints \
-  --checkpoint-name classifier_source_only_best_model.pt
+  --checkpoint-name vae_signature.pt \
+  --epochs 40 \
+  --batch-size 8
 
-python src/training/train_cyclegan.py \
+python3 src/training/generate_signature_augmented.py \
+  --source-csv data/processed/01_domain_split/source_train.csv \
+  --vae experiments/checkpoints/vae_signature.pt \
+  --out-dir data/processed/03_vae_signature_augmented \
+  --include-original \
+  --copies-per-target 1 \
+  --alpha 1.0 \
+  --noise-scale 0.25
+
+python3 src/training/train_adain_signature.py \
+  --train-csv data/processed/01_domain_split/source_train.csv \
+  --out-dir experiments/outputs/adain_signature \
+  --checkpoint-dir experiments/checkpoints \
+  --checkpoint-name adain_signature.pt \
+  --epochs 40 \
+  --batch-size 8
+
+python3 src/training/generate_adain_augmented.py \
+  --source-csv data/processed/01_domain_split/source_train.csv \
+  --adain experiments/checkpoints/adain_signature.pt \
+  --out-dir data/processed/05_adain_signature_augmented \
+  --include-original \
+  --alpha 1.0
+
+python3 src/training/train_cyclegan.py \
   --source-csv data/processed/01_domain_split/source_train.csv \
   --target-csv data/processed/01_domain_split/target_adapt_unlabeled.csv \
   --out-dir experiments/outputs/cyclegan_scanner \
-  --checkpoint-dir experiments/checkpoints
+  --checkpoint-dir experiments/checkpoints \
+  --epochs 30 \
+  --batch-size 4
 
-python -m src.training.translate_source \
+python3 -m src.training.translate_source \
   --source-csv data/processed/01_domain_split/source_train.csv \
   --generator experiments/checkpoints/cyclegan_generator_source_to_target.pt \
   --out-dir data/processed/02_translated_source
 
-python src/datasets/build_augmented_train.py \
-  --source-csv data/processed/01_domain_split/source_train.csv \
+python3 src/datasets/build_augmented_train.py \
+  --source-csv data/processed/03_vae_signature_augmented/source_train_vae_signature_augmented.csv \
   --translated-csv data/processed/02_translated_source/translated_source_train.csv \
-  --out-csv data/processed/02_translated_source/source_train_augmented.csv
+  --out-csv data/processed/04_signature_gan_augmented/source_train_signature_gan_augmented.csv
 
-python src/training/train_classifier.py \
-  --train-csv data/processed/02_translated_source/source_train_augmented.csv \
+python3 src/datasets/build_augmented_train.py \
+  --source-csv data/processed/05_adain_signature_augmented/source_train_adain_signature_augmented.csv \
+  --translated-csv data/processed/02_translated_source/translated_source_train.csv \
+  --out-csv data/processed/06_adain_gan_augmented/source_train_adain_gan_augmented.csv
+
+python3 src/training/train_classifier.py \
+  --train-csv data/processed/04_signature_gan_augmented/source_train_signature_gan_augmented.csv \
   --val-csv data/processed/01_domain_split/source_val.csv \
   --test-csv data/processed/01_domain_split/target_test.csv \
-  --out-dir experiments/outputs/classifier_cyclegan_augmented \
+  --out-dir experiments/outputs/classifier_signature_gan_augmented \
   --checkpoint-dir experiments/checkpoints \
-  --checkpoint-name classifier_cyclegan_augmented_best_model.pt
+  --checkpoint-name classifier_signature_gan_augmented_best_model.pt \
+  --epochs 20 \
+  --batch-size 8
 
-python src/evaluation/evaluate_pipeline.py \
-  --baseline experiments/outputs/classifier_source_only/metrics.json \
-  --augmented experiments/outputs/classifier_cyclegan_augmented/metrics.json \
-  --out-dir experiments/outputs/evaluation \
-  --figures-dir figures
+python3 src/training/train_classifier.py \
+  --train-csv data/processed/06_adain_gan_augmented/source_train_adain_gan_augmented.csv \
+  --val-csv data/processed/01_domain_split/source_val.csv \
+  --test-csv data/processed/01_domain_split/target_test.csv \
+  --out-dir experiments/outputs/classifier_adain_gan_augmented \
+  --checkpoint-dir experiments/checkpoints \
+  --checkpoint-name classifier_adain_gan_augmented_best_model.pt \
+  --epochs 20 \
+  --batch-size 8
+
+# Output finale:
+# experiments/outputs/classifier_signature_gan_augmented/metrics.json
+# experiments/outputs/classifier_adain_gan_augmented/metrics.json
+# figures/05.png
 \end{lstlisting}
 
 \section{Dichiarazione sull'uso di strumenti AI}
