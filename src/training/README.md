@@ -191,13 +191,13 @@ python -c "import torch, numpy, pandas, sklearn, nibabel, matplotlib; print('dep
 # Only if needed:
 pip install --user nibabel matplotlib
 
-bash src/training/run_cluster_vae_adain_pipeline.sh
+RUN_PREPROCESS=1 bash src/training/run_cluster_vae_adain_pipeline.sh
 ```
 
 Useful overrides:
 
 ```bash
-# Skip preprocessing if data/processed/00_prepared/index_prepared.csv already exists.
+# Skip preprocessing only when the prepared index already includes the desired CSV inputs.
 RUN_PREPROCESS=auto bash src/training/run_cluster_vae_adain_pipeline.sh
 
 # Reuse an existing CycleGAN generator checkpoint.

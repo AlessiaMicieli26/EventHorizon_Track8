@@ -111,7 +111,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Prepare ADNI T1 MRI volumes and attach scanner/domain metadata."
     )
-    parser.add_argument("--csv", required=True, help="ADNI image collection CSV.")
+    parser.add_argument(
+        "--csv",
+        required=True,
+        action="append",
+        nargs="+",
+        help="ADNI image collection CSV. Can be passed multiple times or with multiple paths.",
+    )
     parser.add_argument("--nifti-root", required=True, help="Folder containing extracted .nii/.nii.gz files.")
     parser.add_argument("--metadata-root", required=True, help="Folder containing extracted IDA XML metadata.")
     parser.add_argument("--out-dir", default="data/processed/00_prepared")
@@ -120,14 +126,23 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true", help="Only report counts; do not save volumes.")
     args = parser.parse_args()
 
-    csv_path = Path(args.csv)
+    csv_paths = [Path(path) for group in args.csv for path in group]
     nifti_root = Path(args.nifti_root)
     metadata_root = Path(args.metadata_root)
     out_dir = Path(args.out_dir)
     volume_dir = out_dir / "volumes"
     metadata_dir = out_dir / "metadata"
 
-    df = pd.read_csv(csv_path)
+    frames = []
+    for csv_path in csv_paths:
+        frame = pd.read_csv(csv_path)
+        frame["source_csv"] = str(csv_path)
+        frames.append(frame)
+    df = pd.concat(frames, ignore_index=True)
+    df["normalized_image_id"] = df["Image Data ID"].map(normalize_image_id)
+    before = len(df)
+    df = df.drop_duplicates(subset=["normalized_image_id"], keep="first").reset_index(drop=True)
+    print(f"Loaded {len(csv_paths)} CSV file(s), {before} rows, {len(df)} unique image IDs")
     nifti_index = build_file_index(nifti_root, ("*.nii", "*.nii.gz"))
     metadata_index = build_file_index(metadata_root, ("*.xml",))
     print(f"Indexed {sum(len(v) for v in nifti_index.values())} NIfTI matches for {len(nifti_index)} image IDs")
@@ -135,7 +150,7 @@ def main() -> None:
 
     records = []
     for _, row in df.iterrows():
-        image_id = normalize_image_id(row["Image Data ID"])
+        image_id = row["normalized_image_id"]
         modality = infer_modality(str(row.get("Description", "")))
         if modality != "T1":
             continue
@@ -167,6 +182,7 @@ def main() -> None:
                 "series_uid": scanner["series_uid"],
                 "source_nifti": str(nifti_path),
                 "source_xml": str(xml_path) if xml_path else "",
+                "source_csv": str(row.get("source_csv", "")),
             }
         )
 

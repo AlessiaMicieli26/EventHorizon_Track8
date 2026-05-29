@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PYTHON_BIN="${PYTHON_BIN:-python}"
-RUN_PREPROCESS="${RUN_PREPROCESS:-auto}"
+RUN_PREPROCESS="${RUN_PREPROCESS:-1}"
 RUN_CYCLEGAN="${RUN_CYCLEGAN:-1}"
 SOURCE_MANUFACTURERS="${SOURCE_MANUFACTURERS:-SIEMENS,GE MEDICAL SYSTEMS}"
 TARGET_MANUFACTURER="${TARGET_MANUFACTURER:-PHILIPS MEDICAL SYSTEMS}"
@@ -15,6 +15,17 @@ CYCLEGAN_EPOCHS="${CYCLEGAN_EPOCHS:-30}"
 CYCLEGAN_BATCH_SIZE="${CYCLEGAN_BATCH_SIZE:-4}"
 
 mkdir -p experiments/logs experiments/checkpoints figures
+
+extract_archive() {
+  local archive="$1"
+  local destination="$2"
+  if [[ -f "${archive}" ]]; then
+    mkdir -p "${destination}"
+    unzip -n "${archive}" -d "${destination}"
+  else
+    echo "Missing optional archive: ${archive}"
+  fi
+}
 
 run_step() {
   local name="$1"
@@ -41,10 +52,16 @@ import torch, numpy, pandas, sklearn, nibabel, matplotlib
 print("deps ok")
 PY
 
+run_step extract_adni_archives extract_archive "data/ADNI1_Annual 2 Yr 3T.zip" data/raw/nifti
+run_step extract_adni_annual_metadata extract_archive "data/ADNI1_Annual_2_Yr_3T_IDA_Metadata.zip" data/raw/metadata
+run_step extract_adni_complete_3yr extract_archive "data/ADNI1_Complete 3Yr 3T.zip" data/raw/nifti
+run_step extract_adni_complete_3yr_metadata extract_archive "data/ADNI1_Complete_3Yr_3T_IDA_Metadata.zip" data/raw/metadata
+
 if [[ "${RUN_PREPROCESS}" == "1" || ! -f data/processed/00_prepared/index_prepared.csv ]]; then
   run_step prepare_adni \
     "${PYTHON_BIN}" src/datasets/prepare_adni.py \
       --csv data/ADNI1_Annual_2_Yr_3T_5_26_2026.csv \
+      --csv data/ADNI1_Complete_3Yr_3T_5_29_2026.csv \
       --nifti-root data/raw/nifti \
       --metadata-root data/raw/metadata \
       --out-dir data/processed/00_prepared \

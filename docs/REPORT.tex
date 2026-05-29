@@ -6,7 +6,7 @@
 \usepackage{geometry}
 \usepackage{graphicx}
 \usepackage{booktabs}
-\usepackage{array}
+\usepackage{array}+
 \usepackage{float}
 \usepackage{hyperref}
 \usepackage{xcolor}
@@ -37,7 +37,6 @@
     backgroundcolor=\color{gray!8}
 }
 \lstset{style=bashstyle}
-\graphicspath{{../figures/}}
 
 \title{\textbf{Domain Adaptation su MRI ADNI con VAE Scanner Signatures e CycleGAN}\\
 \large Relazione tecnica del progetto}
@@ -584,18 +583,18 @@ Artefatto & Righe dati \\
 
 \section{Scatterplot delle metriche}
 
-La Figura~\ref{fig:multi_scatter} e' il grafico generato dalla valutazione multi-modello e salvato direttamente in \texttt{figures/multi\_model\_accuracy\_f1.png}. Il grafico posiziona ogni modello nello spazio accuracy/macro-F1 sul target domain. La Figura~\ref{fig:scatter} e' invece la valutazione source-only vs CycleGAN-augmented mantenuta come artefatto precedente.
+La Figura~\ref{fig:multi_scatter} e' il grafico generato dalla valutazione multi-modello e salvato direttamente in \texttt{figures/08.png}. Il grafico posiziona ogni modello nello spazio accuracy/macro-F1 sul target domain. La Figura~\ref{fig:scatter} e' invece la valutazione source-only vs CycleGAN-augmented mantenuta come artefatto precedente.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.74\textwidth]{multi_model_accuracy_f1.png}
+    \includegraphics[width=0.74\textwidth]{figures/08.png}
     \caption{Confronto multi-modello sul target test set PHILIPS: source-only, CycleGAN-augmented e VAE+GAN-augmented.}
     \label{fig:multi_scatter}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.72\textwidth]{01.png}
+    \includegraphics[width=0.72\textwidth]{figures/01.png}
     \caption{Scatterplot accuracy/macro-F1 dei due modelli valutati sul target test set.}
     \label{fig:scatter}
 \end{figure}
@@ -606,7 +605,7 @@ La Figura~\ref{fig:classifier_curves} confronta loss, validation accuracy e vali
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{02.png}
+    \includegraphics[width=\textwidth]{figures/02.png}
     \caption{Curve temporali di loss, validation accuracy e validation macro-F1 per esperimenti precedenti source-only e CycleGAN-augmented.}
     \label{fig:classifier_curves}
 \end{figure}
@@ -619,7 +618,7 @@ La Figura~\ref{fig:cyclegan_curves} mostra le loss del generatore e del discrimi
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.88\textwidth]{03.png}
+    \includegraphics[width=0.88\textwidth]{figures/03.png}
     \caption{Loss generator/discriminator della CycleGAN durante il training.}
     \label{fig:cyclegan_curves}
 \end{figure}
@@ -632,7 +631,7 @@ La Figura~\ref{fig:signature_gan_qualitative} mostra le preview qualitative aggi
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.92\textwidth]{06.png}
+    \includegraphics[width=0.92\textwidth]{figures/06.png}
     \caption{Preview qualitativa aggiornata: originale source, augmentation VAE residuale e traduzione CycleGAN.}
     \label{fig:signature_gan_qualitative}
 \end{figure}
@@ -641,12 +640,46 @@ La Figura~\ref{fig:signature_gan_differences} isola le differenze normalizzate p
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.92\textwidth]{07.png}
+    \includegraphics[width=0.92\textwidth]{figures/07.png}
     \caption{Mappe di differenza normalizzate per VAE residuale e CycleGAN.}
     \label{fig:signature_gan_differences}
 \end{figure}
 
 Queste preview non costituiscono una validazione clinica, ma permettono di controllare visivamente se le trasformazioni sono localizzate e se introducono artefatti evidenti. La correzione evita il collasso visivo del decoder VAE: l'immagine sintetica conserva l'anatomia dell'originale e applica una perturbazione piu' piccola. Un'analisi piu' rigorosa dovrebbe includere controlli anatomici e metriche quantitative di preservazione strutturale.
+
+\section{Figure qualitative aggiuntive}
+
+La Figura~\ref{fig:cyclegan_qualitative_previous} riporta le preview qualitative della traduzione CycleGAN usate come controllo visuale precedente. La Figura~\ref{fig:vae_gan_qualitative_previous} mostra invece la prima versione del confronto fra firma VAE e traduzione GAN, utile per evidenziare il problema della generazione VAE diretta prima della correzione residuale.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.78\textwidth]{figures/04.png}
+    \caption{Preview qualitativa precedente della traduzione CycleGAN: slice originale source, slice tradotta e differenza assoluta.}
+    \label{fig:cyclegan_qualitative_previous}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\textwidth]{figures/05.png}
+    \caption{Preview qualitativa precedente del confronto fra firma VAE, traduzione GAN e rispettive differenze rispetto all'originale.}
+    \label{fig:vae_gan_qualitative_previous}
+\end{figure}
+
+Le Figure~\ref{fig:scanner_augmentation_examples} e~\ref{fig:scanner_change_maps} riportano una versione estesa delle preview finali: la prima confronta originale source, augmentation VAE residuale, traduzione CycleGAN e mappe di differenza; la seconda isola le mappe di cambiamento assoluto dopo augmentation generativa.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.92\textwidth]{figures/09.png}
+    \caption{Esempi qualitativi di augmentation scanner-domain con originale source, VAE signature residuale, traduzione CycleGAN e differenze assolute.}
+    \label{fig:scanner_augmentation_examples}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.86\textwidth]{figures/10.png}
+    \caption{Mappe di cambiamento assoluto dopo augmentation generativa per VAE residuale e CycleGAN.}
+    \label{fig:scanner_change_maps}
+\end{figure}
 
 \section{Discussione dei risultati}
 
@@ -695,20 +728,22 @@ Gli output principali della run finale sono:
     \item \texttt{experiments/outputs/classifier\_cyclegan\_augmented/metrics.json};
     \item \texttt{experiments/outputs/classifier\_signature\_gan\_augmented/metrics.json};
     \item \texttt{experiments/outputs/evaluation\_multi/summary.md};
-    \item \texttt{figures/multi\_model\_accuracy\_f1.png}.
+    \item \texttt{figures/08.png}.
 \end{itemize}
 
 I log e le figure degli esperimenti precedenti sono mantenuti in \texttt{experiments/logs} e \texttt{figures}. Per la pipeline finale e' stata generata anche una nuova figura qualitativa:
 
 \begin{itemize}[leftmargin=1.2cm]
-    \item \texttt{01.png};
-    \item \texttt{02.png};
-    \item \texttt{03.png};
-    \item \texttt{04.png} (pipeline CycleGAN precedente);
-    \item \texttt{05.png} (pipeline VAE+GAN precedente);
-    \item \texttt{06.png} (preview qualitativa aggiornata);
-    \item \texttt{07.png} (mappe di differenza aggiornate);
-    \item \texttt{multi\_model\_accuracy\_f1.png} (confronto quantitativo multi-modello).
+    \item \texttt{figures/01.png};
+    \item \texttt{figures/02.png};
+    \item \texttt{figures/03.png};
+    \item \texttt{figures/04.png} (pipeline CycleGAN precedente);
+    \item \texttt{figures/05.png} (pipeline VAE+GAN precedente);
+    \item \texttt{figures/06.png} (preview qualitativa aggiornata);
+    \item \texttt{figures/07.png} (mappe di differenza aggiornate);
+    \item \texttt{figures/08.png} (confronto quantitativo multi-modello);
+    \item \texttt{figures/09.png} (preview qualitativa estesa);
+    \item \texttt{figures/10.png} (mappe di cambiamento assoluto estese).
 \end{itemize}
 
 \section{Riproducibilita'}
@@ -814,7 +849,7 @@ Il progetto ha prodotto una pipeline completa e riproducibile per studiare domai
 
 Il risultato finale e' che il modello source-only addestrato su SIEMENS e GE MEDICAL SYSTEMS raggiunge accuracy 0.7429 e macro-F1 0.7395 sul target test set PHILIPS MEDICAL SYSTEMS. Il modello CycleGAN-augmented scende a 0.5714 e 0.5585, mentre il modello VAE+GAN-augmented scende a 0.5143 e 0.4218. Questo non invalida la pipeline: al contrario, fornisce un risultato sperimentale chiaro e utile. L'aumento generativo, nella configurazione attuale, non e' sufficiente a ottenere una generalizzazione robusta. La causa piu' probabile e' la combinazione di dataset piccolo, uso di sole slice centrali e training generativo non supervisionato rispetto al task diagnostico.
 
-Il lavoro svolto costituisce quindi una base solida per esperimenti successivi. La struttura del codice e' stata organizzata secondo le responsabilita' del repository, gli artefatti sono stati salvati nelle cartelle corrette e le figure nuove sono state prodotte in \texttt{figures/}, in particolare \texttt{figures/06.png}, \texttt{figures/07.png} e \texttt{figures/multi\_model\_accuracy\_f1.png}.
+Il lavoro svolto costituisce quindi una base solida per esperimenti successivi. La struttura del codice e' stata organizzata secondo le responsabilita' del repository, gli artefatti sono stati salvati nelle cartelle corrette e le figure nuove sono state prodotte in \texttt{figures/}, in particolare \texttt{figures/06.png}, \texttt{figures/07.png}, \texttt{figures/08.png}, \texttt{figures/09.png} e \texttt{figures/10.png}.
 
 \newpage
 \appendix
@@ -947,7 +982,7 @@ python src/training/train_classifier.py --train-csv data/processed/06_adain_gan_
 
 \subsection{Valutazione e figure in \texttt{figures/}}
 
-La valutazione a due modelli genera \texttt{experiments/outputs/evaluation/summary.md}. La valutazione multi-modello genera \texttt{experiments/outputs/evaluation\_multi/summary.md} e il grafico \texttt{figures/multi\_model\_accuracy\_f1.png}. Tutte le nuove figure devono rimanere nella cartella \texttt{figures/}, cosi' la relazione puo' includerle con un path unico.
+La valutazione a due modelli genera \texttt{experiments/outputs/evaluation/summary.md}. La valutazione multi-modello genera \texttt{experiments/outputs/evaluation\_multi/summary.md} e il grafico \texttt{figures/08.png}. Tutte le nuove figure devono rimanere nella cartella \texttt{figures/}, cosi' la relazione puo' includerle con un path unico.
 
 \begin{lstlisting}[language=bash]
 python src/evaluation/evaluate_pipeline.py --baseline experiments/outputs/classifier_source_only/metrics.json --augmented experiments/outputs/classifier_cyclegan_augmented/metrics.json --out-dir experiments/outputs/evaluation --figures-dir figures

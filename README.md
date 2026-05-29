@@ -43,7 +43,9 @@ Expected local inputs:
 
 - MRI archive: `data/ADNI1_Annual 2 Yr 3T.zip`
 - IDA metadata archive: `data/ADNI1_Annual_2_Yr_3T_IDA_Metadata.zip`
-- ADNI image collection CSV: a CSV containing at least `Image Data ID`, `Subject`, `Group`, `Description`, and `Acq Date`
+- Additional MRI archive: `data/ADNI1_Complete 3Yr 3T.zip`
+- Additional IDA metadata archive: `data/ADNI1_Complete_3Yr_3T_IDA_Metadata.zip`
+- ADNI image collection CSVs containing at least `Image Data ID`, `Subject`, `Group`, `Description`, and `Acq Date`
 
 Extract the raw data:
 
@@ -51,6 +53,8 @@ Extract the raw data:
 mkdir -p data/raw/nifti data/raw/metadata
 unzip -n "data/ADNI1_Annual 2 Yr 3T.zip" -d data/raw/nifti
 unzip -n "data/ADNI1_Annual_2_Yr_3T_IDA_Metadata.zip" -d data/raw/metadata
+unzip -n "data/ADNI1_Complete 3Yr 3T.zip" -d data/raw/nifti
+unzip -n "data/ADNI1_Complete_3Yr_3T_IDA_Metadata.zip" -d data/raw/metadata
 ```
 
 ## Pipeline
@@ -61,7 +65,8 @@ This step filters T1 scans, joins scanner metadata, normalizes volumes, and writ
 
 ```bash
 python src/datasets/prepare_adni.py \
-  --csv data/<ADNI_IMAGE_COLLECTION>.csv \
+  --csv data/ADNI1_Annual_2_Yr_3T_5_26_2026.csv \
+  --csv data/ADNI1_Complete_3Yr_3T_5_29_2026.csv \
   --nifti-root data/raw/nifti \
   --metadata-root data/raw/metadata \
   --out-dir data/processed/00_prepared \
@@ -73,7 +78,8 @@ Use `--dry-run` first to verify counts without writing all volumes:
 
 ```bash
 python src/datasets/prepare_adni.py \
-  --csv data/<ADNI_IMAGE_COLLECTION>.csv \
+  --csv data/ADNI1_Annual_2_Yr_3T_5_26_2026.csv \
+  --csv data/ADNI1_Complete_3Yr_3T_5_29_2026.csv \
   --nifti-root data/raw/nifti \
   --metadata-root data/raw/metadata \
   --field 3T \

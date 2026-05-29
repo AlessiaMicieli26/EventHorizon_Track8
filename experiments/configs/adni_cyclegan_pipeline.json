@@ -1,6 +1,9 @@
 {
   "data": {
-    "image_collection_csv": "data/ADNI1_Annual_2_Yr_3T_5_26_2026.csv",
+    "image_collection_csvs": [
+      "data/ADNI1_Annual_2_Yr_3T_5_26_2026.csv",
+      "data/ADNI1_Complete_3Yr_3T_5_29_2026.csv"
+    ],
     "nifti_root": "data/raw/nifti",
     "metadata_root": "data/raw/metadata",
     "prepared_dir": "data/processed/00_prepared",

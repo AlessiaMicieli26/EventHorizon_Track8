@@ -7,6 +7,7 @@ Run order:
 ```bash
 python src/datasets/prepare_adni.py \
   --csv data/ADNI1_Annual_2_Yr_3T_5_26_2026.csv \
+  --csv data/ADNI1_Complete_3Yr_3T_5_29_2026.csv \
   --nifti-root data/raw/nifti \
   --metadata-root data/raw/metadata \
   --out-dir data/processed/00_prepared \
