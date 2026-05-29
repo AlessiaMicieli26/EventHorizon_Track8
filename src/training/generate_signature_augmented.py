@@ -18,7 +18,7 @@ def load_center_slice(path: str, image_size: int) -> torch.Tensor:
     x = torch.from_numpy(image[None, None, ...].copy())
     if x.shape[-2:] != (image_size, image_size):
         x = F.interpolate(x, size=(image_size, image_size), mode="bilinear", align_corners=False)
-    return x
+    return x.clamp(0.0, 1.0)
 
 
 def safe_name(value: str) -> str:
@@ -34,6 +34,21 @@ def main() -> None:
     parser.add_argument("--out-dir", default="data/processed/03_vae_signature_augmented")
     parser.add_argument("--alpha", type=float, default=1.0, help="Strength of target-source signature transfer.")
     parser.add_argument("--noise-scale", type=float, default=0.25, help="Latent std multiplier for synthetic signatures.")
+    parser.add_argument(
+        "--generation-mode",
+        choices=["residual", "decode"],
+        default="residual",
+        help=(
+            "residual preserves anatomy by adding the decoded scanner-style delta to the original slice; "
+            "decode saves the raw shifted VAE decoder output."
+        ),
+    )
+    parser.add_argument(
+        "--residual-scale",
+        type=float,
+        default=0.6,
+        help="Multiplier for the decoded scanner-style residual when generation-mode=residual.",
+    )
     parser.add_argument("--copies-per-target", type=int, default=1)
     parser.add_argument("--include-original", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
@@ -72,6 +87,7 @@ def main() -> None:
         for _, row in df.iterrows():
             x = load_center_slice(row["volume_path"], checkpoint["image_size"]).to(device)
             mu, _ = model.encode(x)
+            decoded_source = model.decode(mu)
             source_manufacturer = row["manufacturer"]
             source_mean = signatures[source_manufacturer]["mean"].to(device)
             for target_manufacturer in source_manufacturers:
@@ -83,7 +99,13 @@ def main() -> None:
                 for copy_idx in range(args.copies_per_target):
                     noise = torch.randn_like(mu) * target_std.unsqueeze(0) * args.noise_scale
                     z = mu + args.alpha * direction.unsqueeze(0) + noise
-                    synthetic = model.decode(z).squeeze().cpu().numpy().astype(np.float32)
+                    decoded_shifted = model.decode(z)
+                    if args.generation_mode == "residual":
+                        scanner_delta = decoded_shifted - decoded_source
+                        synthetic_tensor = (x + args.residual_scale * scanner_delta).clamp(0.0, 1.0)
+                    else:
+                        synthetic_tensor = decoded_shifted.clamp(0.0, 1.0)
+                    synthetic = synthetic_tensor.squeeze().cpu().numpy().astype(np.float32)
                     target_tag = safe_name(target_manufacturer)
                     out_path = image_dir / f"{row['subject']}__{row['image_id']}__sig_{target_tag}__{copy_idx}.npy"
                     np.save(out_path, synthetic)

@@ -121,7 +121,9 @@ run_step generate_vae_signature \
     --include-original \
     --copies-per-target 1 \
     --alpha 1.0 \
-    --noise-scale 0.25
+    --noise-scale 0.10 \
+    --generation-mode residual \
+    --residual-scale 0.6
 
 run_step build_vae_gan_augmented \
   "${PYTHON_BIN}" src/datasets/build_augmented_train.py \
