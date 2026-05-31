@@ -1,5 +1,6 @@
 | model | accuracy | macro_f1 | delta_accuracy_vs_first | delta_macro_f1_vs_first |
 | :--- | ---: | ---: | ---: | ---: |
-| source_only | 0.7429 | 0.7395 | 0.0000 | 0.0000 |
-| cyclegan_augmented | 0.5714 | 0.5585 | -0.1714 | -0.1810 |
-| signature_gan_augmented | 0.5143 | 0.4218 | -0.2286 | -0.3177 |
+| source_only | 0.6571 | 0.3966 | 0.0000 | 0.0000 |
+| cyclegan_augmented | 0.4286 | 0.4281 | -0.2286 | 0.0316 |
+| vae_gan_augmented | 0.6286 | 0.3860 | -0.0286 | -0.0106 |
+| adain_gan_augmented | 0.7143 | 0.6500 | 0.0571 | 0.2534 |

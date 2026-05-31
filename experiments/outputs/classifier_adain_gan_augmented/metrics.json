@@ -1,0 +1,37 @@
+{
+  "label_to_idx": {
+    "disease": 0,
+    "healthy": 1
+  },
+  "target_test": {
+    "accuracy": 0.7142857142857143,
+    "macro_f1": 0.65,
+    "report": {
+      "0": {
+        "precision": 0.625,
+        "recall": 0.4166666666666667,
+        "f1-score": 0.5,
+        "support": 12.0
+      },
+      "1": {
+        "precision": 0.7407407407407407,
+        "recall": 0.8695652173913043,
+        "f1-score": 0.8,
+        "support": 23.0
+      },
+      "accuracy": 0.7142857142857143,
+      "macro avg": {
+        "precision": 0.6828703703703703,
+        "recall": 0.6431159420289855,
+        "f1-score": 0.65,
+        "support": 35.0
+      },
+      "weighted avg": {
+        "precision": 0.7010582010582009,
+        "recall": 0.7142857142857143,
+        "f1-score": 0.6971428571428572,
+        "support": 35.0
+      }
+    }
+  }
+}

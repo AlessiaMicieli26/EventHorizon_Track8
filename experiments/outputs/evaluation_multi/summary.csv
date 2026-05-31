@@ -1,4 +1,5 @@
 model,accuracy,macro_f1,metrics_path,delta_accuracy_vs_first,delta_macro_f1_vs_first
-source_only,0.7428571428571429,0.7394540942928041,experiments/outputs/classifier_source_only/metrics.json,0.0,0.0
-cyclegan_augmented,0.5714285714285714,0.5584524810765349,experiments/outputs/classifier_cyclegan_augmented/metrics.json,-0.17142857142857149,-0.18100161321626917
-signature_gan_augmented,0.514286,0.421769,experiments/outputs/classifier_signature_gan_augmented/metrics.json,-0.228571,-0.317685
+source_only,0.6571428571428571,0.39655172413793105,experiments/outputs/classifier_source_only/metrics.json,0.0,0.0
+cyclegan_augmented,0.42857142857142855,0.42810457516339867,experiments/outputs/classifier_cyclegan_augmented/metrics.json,-0.2285714285714286,0.03155285102546762
+vae_gan_augmented,0.6285714285714286,0.38596491228070173,experiments/outputs/classifier_signature_gan_augmented/metrics.json,-0.02857142857142858,-0.010586811857229317
+adain_gan_augmented,0.7142857142857143,0.65,experiments/outputs/classifier_adain_gan_augmented/metrics.json,0.05714285714285716,0.253448275862069

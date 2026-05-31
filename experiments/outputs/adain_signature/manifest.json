@@ -1,0 +1,12 @@
+{
+  "train_csv": "data/processed/01_domain_split/source_train.csv",
+  "image_size": 256,
+  "manufacturers": {
+    "GE MEDICAL SYSTEMS": {
+      "n": 18
+    },
+    "SIEMENS": {
+      "n": 63
+    }
+  }
+}
