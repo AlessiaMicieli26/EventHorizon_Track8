@@ -16,11 +16,14 @@
 \usepackage{subcaption}
 \usepackage{enumitem}
 \usepackage{listings}
+\usepackage[protrusion=true,expansion=false]{microtype}
 
 \geometry{margin=2.45cm}
+\graphicspath{{figures/}{docs/figures/}}
 \setlength{\parskip}{0.55em}
 \setlength{\parindent}{0pt}
 \renewcommand{\arraystretch}{1.18}
+\emergencystretch=2.5em
 
 \hypersetup{
     colorlinks=true,
@@ -38,17 +41,17 @@
 }
 \lstset{style=bashstyle}
 
-\title{\textbf{Domain Adaptation su MRI ADNI con VAE, AdaIN e CycleGAN}\\
+\title{\textbf{Domain Adaptation su MRI ADNI con VAE Scanner Signatures e CycleGAN}\\
 \large Relazione tecnica del progetto}
-\author{Gruppo: TBD \qquad Project ID: TBD}
-\date{\today}
+\author{Gruppo: EventHorizon \qquad Track: 8}
+\date{2026}
 
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
-Questa relazione descrive il lavoro svolto per costruire una pipeline di domain adaptation su immagini di risonanza magnetica strutturale provenienti da ADNI. Il problema affrontato e' la variazione di dominio causata da scanner e produttori diversi: un classificatore addestrato su scansioni acquisite da alcuni produttori puo' degradare quando viene valutato su immagini acquisite da un produttore non visto. La pipeline prepara volumi T1, costruisce split patient-level usando due produttori come source domain e un terzo produttore come target domain, addestra un classificatore baseline source-only, integra traduzioni CycleGAN, genera augmentation tramite VAE scanner signatures e usa una variante AdaIN per il trasferimento di statistiche di stile scanner. Il codice e' stato organizzato secondo la struttura del repository: preprocessing in \texttt{src/datasets}, architetture in \texttt{src/models}, training in \texttt{src/training}, valutazione in \texttt{src/evaluation}, checkpoint in \texttt{experiments/checkpoints}, log in \texttt{experiments/logs} e figure in \texttt{figures}. Nella valutazione finale sincronizzata, addestrando su SIEMENS e GE MEDICAL SYSTEMS e testando su PHILIPS MEDICAL SYSTEMS, \texttt{source\_only} raggiunge accuracy 0.6571 e macro-F1 0.3966; \texttt{cyclegan\_augmented} raggiunge accuracy 0.4286 e macro-F1 0.4281; \texttt{vae\_gan\_augmented} raggiunge accuracy 0.6286 e macro-F1 0.3860; \texttt{adain\_gan\_augmented} raggiunge accuracy 0.7143 e macro-F1 0.6500. In questa configurazione AdaIN+GAN e' il modello migliore fra quelli confrontati, soprattutto per macro-F1.
+Questa relazione descrive il lavoro svolto per costruire una pipeline di domain adaptation su immagini di risonanza magnetica strutturale provenienti da ADNI. Il problema affrontato e' la variazione di dominio causata da scanner e produttori diversi: un classificatore addestrato su scansioni acquisite da alcuni produttori puo' degradare quando viene valutato su immagini acquisite da un produttore non visto. La pipeline prepara volumi T1, costruisce split patient-level usando due produttori come source domain e un terzo produttore come target domain, addestra un classificatore baseline source-only, integra traduzioni CycleGAN, genera augmentation tramite VAE scanner signatures e usa anche una variante AdaIN per il trasferimento di statistiche di stile scanner. Il codice e' stato organizzato secondo la struttura del repository: preprocessing in \texttt{src/datasets}, architetture in \texttt{src/models}, training in \texttt{src/training}, valutazione in \texttt{src/evaluation}, checkpoint in \texttt{experiments/checkpoints}, log in \texttt{experiments/logs} e figure in \texttt{figures}. Nella valutazione finale multi-modello, addestrando su SIEMENS e GE MEDICAL SYSTEMS e testando su PHILIPS MEDICAL SYSTEMS, il baseline \texttt{source\_only} raggiunge accuracy 0.6571 e macro-F1 0.3966; \texttt{cyclegan\_augmented} raggiunge 0.4286 e 0.4281; \texttt{signature\_gan\_augmented} raggiunge 0.6286 e 0.3860; \texttt{adain\_gan\_augmented} raggiunge 0.7143 e 0.6500. In questa configurazione AdaIN+GAN e' il modello migliore sul target PHILIPS.
 \end{abstract}
 
 \tableofcontents
@@ -86,7 +89,7 @@ La domanda sperimentale puo' essere formulata come segue:
 Dato un classificatore addestrato su MRI provenienti da scanner SIEMENS e GE MEDICAL SYSTEMS, quale strategia di augmentation fra VAE scanner signatures, AdaIN scanner signatures e traduzione CycleGAN generalizza meglio su un target test set PHILIPS MEDICAL SYSTEMS?
 \end{quote}
 
-La risposta empirica, nella run finale sincronizzata, e' che la pipeline e' eseguibile end-to-end e che il ramo AdaIN+GAN migliora il controllo source-only sul target PHILIPS. Il baseline raggiunge accuracy 0.6571 e macro-F1 0.3966, il modello CycleGAN-augmented ottiene 0.4286/0.4281, il modello VAE+GAN-augmented ottiene 0.6286/0.3860 e il modello AdaIN+GAN-augmented ottiene 0.7143/0.6500. Questo risultato e' utile perche' distingue due comportamenti: le augmentation VAE e CycleGAN non bastano a stabilizzare la classificazione, mentre il trasferimento AdaIN produce un miglior equilibrio fra classe disease e classe healthy.
+La risposta empirica, nella run finale disponibile, e' che la pipeline e' eseguibile end-to-end e che il ramo AdaIN+GAN e' l'unico a migliorare chiaramente il controllo source-only. Il baseline raggiunge accuracy 0.6571 e macro-F1 0.3966 su PHILIPS; CycleGAN-augmented ottiene 0.4286/0.4281; VAE+GAN-augmented ottiene 0.6286/0.3860; AdaIN+GAN-augmented sale a 0.7143/0.6500. Questo risultato mostra una pipeline funzionante e mette in evidenza limiti tecnici e sperimentali importanti: numero ridotto di campioni, training generativo non supervisionato, uso di una sola slice centrale per volume, assenza di validazione qualitativa clinica e architetture volutamente leggere.
 
 \section{Organizzazione del repository}
 
@@ -102,7 +105,7 @@ Durante il lavoro e' stata rispettata l'architettura del repository \texttt{dl26
     \item \texttt{experiments/checkpoints/}: checkpoint addestrati;
     \item \texttt{experiments/logs/}: log CSV delle curve temporali;
     \item \texttt{experiments/outputs/}: metriche e output degli esperimenti;
-    \item \texttt{figures/}: figure generate per analisi e relazione;
+    \item \texttt{docs/figures/}: figure usate nella relazione;
     \item \texttt{docs/}: report e documentazione finale.
 \end{itemize}
 
@@ -115,10 +118,7 @@ Il dataset utilizzato e' una selezione ADNI composta da scansioni MRI in formato
 \begin{itemize}[leftmargin=1.2cm]
     \item \texttt{data/ADNI1\_Annual 2 Yr 3T.zip};
     \item \texttt{data/ADNI1\_Annual\_2\_Yr\_3T\_IDA\_Metadata.zip};
-    \item \texttt{data/ADNI1\_Annual\_2\_Yr\_3T\_5\_26\_2026.csv};
-    \item \texttt{data/ADNI1\_Complete 3Yr 3T.zip};
-    \item \texttt{data/ADNI1\_Complete\_3Yr\_3T\_IDA\_Metadata.zip};
-    \item \texttt{data/ADNI1\_Complete\_3Yr\_3T\_5\_29\_2026.csv}.
+    \item \texttt{data/ADNI1\_Annual\_2\_Yr\_3T\_5\_26\_2026.csv}.
 \end{itemize}
 
 Il CSV di collezione contiene le colonne necessarie per associare ogni immagine al soggetto, al gruppo diagnostico, alla descrizione della scansione e alla data di acquisizione:
@@ -227,7 +227,7 @@ L'uso di una rete leggera e' stato scelto per rendere il training praticabile lo
 
 \subsection{VAE per firme latenti di scanner}
 
-La componente VAE e' definita in \texttt{src/models/vae.py} e addestrata con \texttt{src/training/train\_vae\_signature.py}. L'obiettivo non e' classificare direttamente la malattia, ma proiettare le slice MRI in uno spazio latente in cui sia possibile stimare una firma media per ciascun produttore source.
+La componente VAE e' definita in \path{src/models/vae.py} e addestrata con \path{src/training/train_vae_signature.py}. L'obiettivo non e' classificare direttamente la malattia, ma proiettare le slice MRI in uno spazio latente in cui sia possibile stimare una firma media per ciascun produttore source.
 
 Il modello usa un encoder convoluzionale che produce media e log-varianza:
 
@@ -265,7 +265,7 @@ In questo modo \(Decoder(z') - Decoder(z)\) viene interpretato come variazione s
 
 \subsection{AdaIN per firme di stile scanner}
 
-La variante AdaIN e' definita in \texttt{src/models/adain.py}, addestrata con \texttt{src/training/train\_adain\_signature.py} e applicata con \texttt{src/training/generate\_adain\_augmented.py}. L'idea e' evitare di chiedere al modello di generare tutta l'immagine partendo da un vettore latente globale, come nel VAE, e trasferire invece lo stile scanner tramite statistiche di feature.
+La variante AdaIN e' definita in \path{src/models/adain.py}. Gli script di training e generazione sono \path{train_adain_signature.py} e \path{generate_adain_augmented.py}. L'idea e' evitare di chiedere al modello di generare tutta l'immagine partendo da un vettore latente globale, come nel VAE, e trasferire invece lo stile scanner tramite statistiche di feature.
 
 Dato un tensore di feature \(f\), AdaIN normalizza il contenuto e lo ri-scala con media e deviazione standard dello stile target:
 
@@ -275,7 +275,7 @@ AdaIN(f, \mu_s, \sigma_s) = \sigma_s \frac{f - \mu(f)}{\sigma(f)} + \mu_s
 
 Nel nostro caso \(\mu_s\) e \(\sigma_s\) sono calcolate come firme medie per produttore sulle feature dell'encoder. Il decoder ricostruisce poi la slice a partire dalle feature con statistiche target. Rispetto al VAE, questa formulazione e' piu' coerente con l'ipotesi che anatomia e scanner style siano fattori separabili: il contenuto resta nelle feature normalizzate, mentre il produttore agisce su media e varianza canale per canale.
 
-La pipeline AdaIN produce un CSV dedicato, \texttt{data/processed/05\_adain\_signature\_augmented/source\_train\_adain\_signature\_augmented.csv}, che puo' essere fuso con le traduzioni GAN nello stesso modo del dataset VAE. Il classificatore risultante viene salvato in \texttt{experiments/outputs/classifier\_adain\_gan\_augmented}, cosi' da confrontarlo direttamente con \texttt{classifier\_signature\_gan\_augmented}.
+La pipeline AdaIN produce un CSV dedicato, \path{data/processed/05_adain_signature_augmented/source_train_adain_signature_augmented.csv}, che puo' essere fuso con le traduzioni GAN nello stesso modo del dataset VAE. Il classificatore risultante viene salvato in \path{experiments/outputs/classifier_adain_gan_augmented}, cosi' da confrontarlo direttamente con \texttt{classifier\_signature\_gan\_augmented}.
 
 \subsection{CycleGAN}
 
@@ -361,7 +361,6 @@ Il conteggio finale e' stato:
 \begin{lstlisting}[language=bash]
 python3 src/datasets/prepare_adni.py \
   --csv data/ADNI1_Annual_2_Yr_3T_5_26_2026.csv \
-  --csv data/ADNI1_Complete_3Yr_3T_5_29_2026.csv \
   --nifti-root data/raw/nifti \
   --metadata-root data/raw/metadata \
   --out-dir data/processed/00_prepared \
@@ -522,13 +521,13 @@ Di conseguenza il training e' stato eseguito su CPU. Il training VAE e il classi
 
 \section{Valutazione}
 
-La valutazione del classificatore finale viene salvata direttamente in \texttt{experiments/outputs/classifier\_signature\_gan\_augmented/metrics.json}. Lo script \texttt{src/evaluation/evaluate\_pipeline.py} resta disponibile per confronti fra baseline e modelli aumentati e produce:
+La valutazione dei classificatori finali viene salvata nelle rispettive directory sotto \texttt{experiments/outputs/}. Lo script \texttt{src/evaluation/evaluate\_multi\_pipeline.py} confronta baseline, CycleGAN, VAE+GAN e AdaIN+GAN e produce:
 
 \begin{itemize}[leftmargin=1.2cm]
     \item \texttt{experiments/outputs/evaluation/summary.csv};
     \item \texttt{experiments/outputs/evaluation/summary.json};
     \item \texttt{experiments/outputs/evaluation/summary.md};
-    \item figure in \texttt{figures/}.
+    \item figure in \texttt{docs/figures/}.
 \end{itemize}
 
 Le metriche principali sono accuracy e macro-F1. La macro-F1 e' particolarmente utile nel contesto attuale perche' il target test set contiene 12 campioni disease e 23 campioni healthy.
@@ -550,21 +549,21 @@ AdaIN+GAN-augmented & 0.7143 & 0.6500 & 0.0571 & 0.2534 \\
 \end{tabular}
 \end{table}
 
-Il modello source-only e' il controllo sperimentale: viene addestrato solo su \texttt{source\_train.csv}, cioe' su SIEMENS e GE MEDICAL SYSTEMS, e viene valutato su \texttt{target\_test.csv}, cioe' su PHILIPS MEDICAL SYSTEMS. Il modello CycleGAN-augmented usa un training set che contiene sia source originali sia traduzioni source-to-target. Il modello VAE+GAN-augmented usa un training set da 243 righe dati: 81 slice source originali, 81 slice sintetiche generate tramite firme VAE e 81 slice tradotte tramite GAN. Anche il modello AdaIN+GAN-augmented usa 243 righe: 81 originali, 81 versioni AdaIN e 81 traduzioni CycleGAN. La valutazione e' stata eseguita solo sul target test set PHILIPS, composto da 35 scansioni non usate per il training.
+Il modello source-only e' il controllo sperimentale: viene addestrato solo su \path{source_train.csv}, cioe' su SIEMENS e GE MEDICAL SYSTEMS, e viene valutato su \path{target_test.csv}, cioe' su PHILIPS MEDICAL SYSTEMS. Il modello CycleGAN-augmented usa un training set che contiene sia source originali sia traduzioni source-to-target. Il modello VAE+GAN-augmented usa un training set da 243 righe dati: 81 slice source originali, 81 slice sintetiche generate tramite firme VAE e 81 slice tradotte tramite GAN. Il modello AdaIN+GAN-augmented usa lo stesso schema, sostituendo le immagini sintetiche VAE con augmentation AdaIN. La valutazione e' stata eseguita solo sul target test set PHILIPS, composto da 35 scansioni non usate per il training.
 
-Nella run sincronizzata, AdaIN+GAN e' il modello migliore: migliora il baseline di +0.0571 in accuracy e +0.2534 in macro-F1. Il miglioramento della macro-F1 e' particolarmente rilevante perche' il baseline source-only classifica correttamente la classe healthy ma non recupera campioni disease nella run finale.
+Dopo l'analisi qualitativa e' stata corretta la generazione VAE signature da decoder diretto a generazione residuale. Le figure qualitative, il CSV aumentato e le metriche multi-modello sono stati aggiornati con la pipeline finale. Il risultato piu' rilevante e' il miglioramento di AdaIN+GAN rispetto al baseline source-only: +0.0571 in accuracy e +0.2534 in macro-F1.
 
 \begin{table}[H]
 \centering
-\caption{Metriche per classe del modello AdaIN+GAN-augmented. Classe 0: disease, classe 1: healthy.}
+\caption{Metriche per classe del modello source-only. Classe 0: disease, classe 1: healthy.}
 \begin{tabular}{lrrrr}
 \toprule
 Classe & Precision & Recall & F1-score & Support \\
 \midrule
-Disease & 0.6250 & 0.4167 & 0.5000 & 12 \\
-Healthy & 0.7407 & 0.8696 & 0.8000 & 23 \\
+Disease & 0.0000 & 0.0000 & 0.0000 & 12 \\
+Healthy & 0.6571 & 1.0000 & 0.7931 & 23 \\
 \midrule
-Macro avg & 0.6829 & 0.6431 & 0.6500 & 35 \\
+Macro avg & 0.3286 & 0.5000 & 0.3966 & 35 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -572,7 +571,7 @@ Macro avg & 0.6829 & 0.6431 & 0.6500 & 35 \\
 \begin{table}[H]
 \centering
 \caption{Dimensione dei dataset intermedi nella pipeline finale.}
-\begin{tabular}{lr}
+\begin{tabular}{p{0.74\textwidth}r}
 \toprule
 Artefatto & Righe dati \\
 \midrule
@@ -588,18 +587,18 @@ Artefatto & Righe dati \\
 
 \section{Scatterplot delle metriche}
 
-La Figura~\ref{fig:multi_scatter} e' il grafico generato dalla valutazione multi-modello e salvato direttamente in \texttt{figures/08.png}. Il grafico posiziona ogni modello nello spazio accuracy/macro-F1 sul target domain. La Figura~\ref{fig:scatter} e' invece la valutazione source-only vs CycleGAN-augmented mantenuta come artefatto precedente.
+La Figura~\ref{fig:multi_scatter} e' il grafico generato dalla valutazione multi-modello e salvato direttamente in \texttt{docs/figures/08.png}. Il grafico posiziona ogni modello nello spazio accuracy/macro-F1 sul target domain. La Figura~\ref{fig:scatter} e' invece la valutazione source-only vs CycleGAN-augmented mantenuta come artefatto precedente.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.74\textwidth]{figures/08.png}
+    \includegraphics[width=0.74\textwidth]{08.png}
     \caption{Confronto multi-modello sul target test set PHILIPS: source-only, CycleGAN-augmented, VAE+GAN-augmented e AdaIN+GAN-augmented.}
     \label{fig:multi_scatter}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.72\textwidth]{figures/01.png}
+    \includegraphics[width=0.72\textwidth]{01.png}
     \caption{Scatterplot accuracy/macro-F1 dei due modelli valutati sul target test set.}
     \label{fig:scatter}
 \end{figure}
@@ -610,7 +609,7 @@ La Figura~\ref{fig:classifier_curves} confronta loss, validation accuracy e vali
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figures/02.png}
+    \includegraphics[width=\textwidth]{02.png}
     \caption{Curve temporali di loss, validation accuracy e validation macro-F1 per esperimenti precedenti source-only e CycleGAN-augmented.}
     \label{fig:classifier_curves}
 \end{figure}
@@ -623,7 +622,7 @@ La Figura~\ref{fig:cyclegan_curves} mostra le loss del generatore e del discrimi
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.88\textwidth]{figures/03.png}
+    \includegraphics[width=0.88\textwidth]{03.png}
     \caption{Loss generator/discriminator della CycleGAN durante il training.}
     \label{fig:cyclegan_curves}
 \end{figure}
@@ -636,7 +635,7 @@ La Figura~\ref{fig:signature_gan_qualitative} mostra le preview qualitative aggi
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.92\textwidth]{figures/06.png}
+    \includegraphics[width=0.92\textwidth]{06.png}
     \caption{Preview qualitativa aggiornata: originale source, augmentation VAE residuale e traduzione CycleGAN.}
     \label{fig:signature_gan_qualitative}
 \end{figure}
@@ -645,7 +644,7 @@ La Figura~\ref{fig:signature_gan_differences} isola le differenze normalizzate p
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.92\textwidth]{figures/07.png}
+    \includegraphics[width=0.92\textwidth]{07.png}
     \caption{Mappe di differenza normalizzate per VAE residuale e CycleGAN.}
     \label{fig:signature_gan_differences}
 \end{figure}
@@ -658,14 +657,14 @@ La Figura~\ref{fig:cyclegan_qualitative_previous} riporta le preview qualitative
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.78\textwidth]{figures/04.png}
+    \includegraphics[width=0.78\textwidth]{04.png}
     \caption{Preview qualitativa precedente della traduzione CycleGAN: slice originale source, slice tradotta e differenza assoluta.}
     \label{fig:cyclegan_qualitative_previous}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.92\textwidth]{figures/05.png}
+    \includegraphics[width=0.92\textwidth]{05.png}
     \caption{Preview qualitativa precedente del confronto fra firma VAE, traduzione GAN e rispettive differenze rispetto all'originale.}
     \label{fig:vae_gan_qualitative_previous}
 \end{figure}
@@ -674,21 +673,21 @@ Le Figure~\ref{fig:scanner_augmentation_examples} e~\ref{fig:scanner_change_maps
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.92\textwidth]{figures/09.png}
+    \includegraphics[width=0.92\textwidth]{09.png}
     \caption{Esempi qualitativi di augmentation scanner-domain con originale source, VAE signature residuale, traduzione CycleGAN e differenze assolute.}
     \label{fig:scanner_augmentation_examples}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.86\textwidth]{figures/10.png}
+    \includegraphics[width=0.86\textwidth]{10.png}
     \caption{Mappe di cambiamento assoluto dopo augmentation generativa per VAE residuale e CycleGAN.}
     \label{fig:scanner_change_maps}
 \end{figure}
 
 \section{Discussione dei risultati}
 
-Il risultato principale della pipeline finale sincronizzata e' che AdaIN+GAN e' il modello migliore sul produttore non visto: accuracy 0.7143 e macro-F1 0.6500. Il baseline source-only raggiunge accuracy 0.6571 ma macro-F1 0.3966, perche' nella run finale predice correttamente la classe healthy ma non recupera campioni disease. CycleGAN-augmented ottiene accuracy 0.4286 e macro-F1 0.4281, mentre VAE+GAN-augmented ottiene accuracy 0.6286 e macro-F1 0.3860. AdaIN+GAN e' quindi l'unica variante che migliora chiaramente il controllo source-only sulla macro-F1.
+Il risultato principale della pipeline finale e' che AdaIN+GAN e' il modello migliore sul produttore non visto: accuracy 0.7143 e macro-F1 0.6500. Il baseline source-only ottiene accuracy 0.6571 e macro-F1 0.3966, con un comportamento sbilanciato verso la classe healthy; VAE+GAN resta vicino al baseline in accuracy, ma non in macro-F1; CycleGAN-augmented migliora leggermente la macro-F1 rispetto al baseline, ma perde molta accuracy. Questo indica che la strategia piu' efficace nella run finale e' il trasferimento di statistiche AdaIN combinato con le traduzioni GAN.
 
 Primo, il dataset e' piccolo. Il source train contiene 81 scansioni, e il target adaptation set 36 scansioni. Per addestrare modelli generativi, questi numeri sono molto limitati. Il VAE puo' stimare firme latenti rumorose, mentre la CycleGAN puo' imparare trasformazioni superficiali o instabili invece di una vera mappatura robusta fra domini.
 
@@ -698,13 +697,14 @@ Terzo, le immagini generate vengono usate come augmentation accanto agli origina
 
 Quarto, la validazione del classificatore viene fatta su \texttt{source\_val}, quindi su Siemens e GE. Questo non fornisce una stima diretta delle prestazioni target su Philips. Una possibile estensione sarebbe usare una piccola porzione target etichettata come validation, se disponibile e coerente con il protocollo sperimentale.
 
-Quinto, ne' il VAE ne' la CycleGAN sono vincolati da una loss diagnostica. Essi ottimizzano ricostruzione, regolarizzazione latente, plausibilita' visuale e consistenza ciclica, ma non necessariamente preservano caratteristiche legate alla malattia. In ambito medico, questa distinzione e' cruciale: una immagine plausibile dal punto di vista visivo puo' non essere una buona immagine per addestrare un classificatore diagnostico.
+Quinto, VAE, AdaIN e CycleGAN non sono vincolati da una loss diagnostica. Essi ottimizzano ricostruzione, statistiche di stile, regolarizzazione latente, plausibilita' visuale e consistenza ciclica, ma non necessariamente preservano caratteristiche legate alla malattia. In ambito medico, questa distinzione e' cruciale: una immagine plausibile dal punto di vista visivo puo' non essere una buona immagine per addestrare un classificatore diagnostico.
 
 \section{Checkpoint e artefatti prodotti}
 
 I checkpoint sono stati salvati in \texttt{experiments/checkpoints}, come richiesto dal README della cartella:
 
 \begin{itemize}[leftmargin=1.2cm]
+\small
     \item \texttt{classifier\_source\_only\_best\_model.pt};
     \item \texttt{classifier\_source\_only\_best\_model\_labels.json};
     \item \texttt{vae\_signature.pt};
@@ -721,37 +721,35 @@ I checkpoint sono stati salvati in \texttt{experiments/checkpoints}, come richie
 Gli output principali della run finale sono:
 
 \begin{itemize}[leftmargin=1.2cm]
+\scriptsize
     \item \texttt{experiments/outputs/vae\_signature/vae\_signature.pt};
     \item \texttt{experiments/outputs/vae\_signature/scanner\_signatures.pt};
     \item \texttt{experiments/outputs/vae\_signature/manifest.json};
     \item \texttt{experiments/outputs/adain\_signature/manifest.json};
-    \item \texttt{data/processed/03\_vae\_signature\_augmented/source\_train\_vae\_signature\_augmented.csv};
-    \item \texttt{data/processed/05\_adain\_signature\_augmented/source\_train\_adain\_signature\_augmented.csv};
-    \item \texttt{data/processed/04\_signature\_gan\_augmented/source\_train\_signature\_gan\_augmented.csv};
-    \item \texttt{data/processed/06\_adain\_gan\_augmented/source\_train\_adain\_gan\_augmented.csv};
-    \item \texttt{experiments/outputs/classifier\_source\_only/metrics.json};
-    \item \texttt{experiments/outputs/classifier\_cyclegan\_augmented/metrics.json};
-    \item \texttt{experiments/outputs/classifier\_signature\_gan\_augmented/metrics.json};
-    \item \texttt{experiments/outputs/classifier\_adain\_gan\_augmented/metrics.json};
-    \item \texttt{experiments/outputs/evaluation\_multi/summary.md};
-    \item \texttt{figures/08.png};
-    \item \texttt{figures/multi\_model\_accuracy\_f1.png}.
+    \item \path{data/processed/03_vae_signature_augmented/source_train_vae_signature_augmented.csv};
+    \item \path{data/processed/05_adain_signature_augmented/source_train_adain_signature_augmented.csv};
+    \item \path{data/processed/04_signature_gan_augmented/source_train_signature_gan_augmented.csv};
+    \item \path{data/processed/06_adain_gan_augmented/source_train_adain_gan_augmented.csv};
+    \item \path{experiments/outputs/classifier_source_only/metrics.json};
+    \item \path{experiments/outputs/classifier_cyclegan_augmented/metrics.json};
+    \item \path{experiments/outputs/classifier_signature_gan_augmented/metrics.json};
+    \item \path{experiments/outputs/evaluation_multi/summary.md};
+    \item \texttt{docs/figures/08.png}.
 \end{itemize}
 
-I log e le figure degli esperimenti precedenti sono mantenuti in \texttt{experiments/logs} e \texttt{figures}. Per la pipeline finale e' stata generata anche una nuova figura qualitativa:
+I log sono mantenuti in \texttt{experiments/logs}; le figure usate dalla relazione sono in \texttt{docs/figures}. Per la pipeline finale e' stata generata anche una nuova figura qualitativa:
 
 \begin{itemize}[leftmargin=1.2cm]
-    \item \texttt{figures/01.png};
-    \item \texttt{figures/02.png};
-    \item \texttt{figures/03.png};
-    \item \texttt{figures/04.png} (pipeline CycleGAN precedente);
-    \item \texttt{figures/05.png} (pipeline VAE+GAN precedente);
-    \item \texttt{figures/06.png} (preview qualitativa aggiornata);
-    \item \texttt{figures/07.png} (mappe di differenza aggiornate);
-    \item \texttt{figures/08.png} (confronto quantitativo multi-modello);
-    \item \texttt{figures/multi\_model\_accuracy\_f1.png} (confronto quantitativo multi-modello sincronizzato);
-    \item \texttt{figures/09.png} (preview qualitativa estesa);
-    \item \texttt{figures/10.png} (mappe di cambiamento assoluto estese).
+    \item \texttt{docs/figures/01.png};
+    \item \texttt{docs/figures/02.png};
+    \item \texttt{docs/figures/03.png};
+    \item \texttt{docs/figures/04.png} (pipeline CycleGAN precedente);
+    \item \texttt{docs/figures/05.png} (pipeline VAE+GAN precedente);
+    \item \texttt{docs/figures/06.png} (preview qualitativa aggiornata);
+    \item \texttt{docs/figures/07.png} (mappe di differenza aggiornate);
+    \item \texttt{docs/figures/08.png} (confronto quantitativo multi-modello);
+    \item \texttt{docs/figures/09.png} (preview qualitativa estesa);
+    \item \texttt{docs/figures/10.png} (mappe di cambiamento assoluto estese).
 \end{itemize}
 
 \section{Riproducibilita'}
@@ -853,11 +851,11 @@ Le estensioni piu' utili sono:
 
 \section{Conclusione}
 
-Il progetto ha prodotto una pipeline completa e riproducibile per studiare domain adaptation su MRI ADNI. Sono stati implementati preprocessing, split patient-level per dominio scanner, VAE per firme latenti di macchinari, AdaIN per statistiche di stile, generazione di immagini sintetiche, traduzione CycleGAN, training aumentato VAE+GAN e AdaIN+GAN, evaluation quantitativa e nuove figure qualitative della pipeline finale.
+Il progetto ha prodotto una pipeline completa e riproducibile per studiare domain adaptation su MRI ADNI. Sono stati implementati preprocessing, split patient-level per dominio scanner, VAE per firme latenti di macchinari, AdaIN per statistiche di stile scanner, generazione di immagini sintetiche, traduzione CycleGAN, training aumentato VAE+GAN e AdaIN+GAN, evaluation quantitativa e nuove figure qualitative della pipeline finale.
 
-Il risultato finale e' che il modello AdaIN+GAN-augmented ottiene la migliore prestazione sul target test set PHILIPS MEDICAL SYSTEMS, con accuracy 0.7143 e macro-F1 0.6500. Il baseline source-only raggiunge 0.6571 e 0.3966, il modello CycleGAN-augmented 0.4286 e 0.4281, mentre il modello VAE+GAN-augmented 0.6286 e 0.3860. Il risultato indica che l'augmentation generativa non e' automaticamente utile: CycleGAN e VAE non migliorano il bilanciamento fra le classi, mentre AdaIN+GAN produce il miglior compromesso nella run sincronizzata.
+Il risultato finale e' che il modello source-only addestrato su SIEMENS e GE MEDICAL SYSTEMS raggiunge accuracy 0.6571 e macro-F1 0.3966 sul target test set PHILIPS MEDICAL SYSTEMS. Il modello CycleGAN-augmented ottiene 0.4286 e 0.4281, il modello VAE+GAN-augmented ottiene 0.6286 e 0.3860, mentre AdaIN+GAN-augmented raggiunge 0.7143 e 0.6500. Questo fornisce un risultato sperimentale chiaro: nella configurazione attuale, il trasferimento AdaIN combinato con GAN e' la variante piu' efficace, anche se il dataset piccolo, l'uso di sole slice centrali e il training generativo non supervisionato restano limiti importanti.
 
-Il lavoro svolto costituisce quindi una base solida per esperimenti successivi. La struttura del codice e' stata organizzata secondo le responsabilita' del repository, gli artefatti sono stati salvati nelle cartelle corrette e le figure nuove sono state prodotte in \texttt{figures/}, in particolare \texttt{figures/06.png}, \texttt{figures/07.png}, \texttt{figures/08.png}, \texttt{figures/09.png} e \texttt{figures/10.png}.
+Il lavoro svolto costituisce quindi una base solida per esperimenti successivi. La struttura del codice e' stata organizzata secondo le responsabilita' del repository, gli artefatti sono stati salvati nelle cartelle corrette e le figure nuove sono state copiate in \texttt{docs/figures/}, in particolare \texttt{docs/figures/06.png}, \texttt{docs/figures/07.png}, \texttt{docs/figures/08.png}, \texttt{docs/figures/09.png} e \texttt{docs/figures/10.png}.
 
 \newpage
 \appendix
@@ -901,10 +899,10 @@ CLASSIFIER_EPOCHS=1 GEN_EPOCHS=1 CYCLEGAN_EPOCHS=1 bash src/training/run_cluster
 Questo script legge il CSV ADNI, trova i file NIfTI e XML, filtra le scansioni T1 a 3T, estrae i metadati scanner e salva i volumi normalizzati in formato NumPy. L'output centrale e' \texttt{index\_prepared.csv}, che diventa la tabella master per tutti gli step successivi.
 
 \begin{lstlisting}[language=bash]
-python src/datasets/prepare_adni.py --csv data/ADNI1_Annual_2_Yr_3T_5_26_2026.csv --csv data/ADNI1_Complete_3Yr_3T_5_29_2026.csv --nifti-root data/raw/nifti --metadata-root data/raw/metadata --out-dir data/processed/00_prepared --field 3T --label-mode cn_vs_ad
+python src/datasets/prepare_adni.py --csv data/ADNI1_Annual_2_Yr_3T_5_26_2026.csv --nifti-root data/raw/nifti --metadata-root data/raw/metadata --out-dir data/processed/00_prepared --field 3T --label-mode cn_vs_ad
 \end{lstlisting}
 
-Input principali: CSV ADNI, cartella NIfTI e cartella XML. Output principali: \texttt{data/processed/00\_prepared/index\_prepared.csv} e volumi \texttt{.npy} normalizzati.
+Input principali: CSV ADNI, cartella NIfTI e cartella XML. Output principali: \path{data/processed/00_prepared/index_prepared.csv} e volumi \texttt{.npy} normalizzati.
 
 \subsection{Split patient-level per dominio scanner}
 
@@ -924,7 +922,7 @@ Il baseline addestra il classificatore solo sui dati source originali. Serve com
 python src/training/train_classifier.py --train-csv data/processed/01_domain_split/source_train.csv --val-csv data/processed/01_domain_split/source_val.csv --test-csv data/processed/01_domain_split/target_test.csv --out-dir experiments/outputs/classifier_source_only --checkpoint-dir experiments/checkpoints --checkpoint-name classifier_source_only_best_model.pt --epochs 20 --batch-size 8
 \end{lstlisting}
 
-Output: checkpoint in \texttt{experiments/checkpoints/classifier\_source\_only\_best\_model.pt} e metriche in \texttt{experiments/outputs/classifier\_source\_only/metrics.json}.
+Output: checkpoint in \path{experiments/checkpoints/classifier_source_only_best_model.pt} e metriche in \path{experiments/outputs/classifier_source_only/metrics.json}.
 
 \subsection{CycleGAN e traduzione source-to-target}
 
@@ -936,7 +934,7 @@ python src/training/train_cyclegan.py --source-csv data/processed/01_domain_spli
 python -m src.training.translate_source --source-csv data/processed/01_domain_split/source_train.csv --generator experiments/checkpoints/cyclegan_generator_source_to_target.pt --out-dir data/processed/02_translated_source
 \end{lstlisting}
 
-Il primo comando produce i checkpoint dei generatori e i log della loss. Il secondo applica il generatore source-to-target a ogni esempio source e salva \texttt{data/processed/02\_translated\_source/translated\_source\_train.csv}.
+Il primo comando produce i checkpoint dei generatori e i log della loss. Il secondo applica il generatore source-to-target a ogni esempio source e salva \path{data/processed/02_translated_source/translated_source_train.csv}.
 
 \subsection{Training del classificatore CycleGAN-augmented}
 
@@ -948,7 +946,7 @@ python src/datasets/build_augmented_train.py --source-csv data/processed/01_doma
 python src/training/train_classifier.py --train-csv data/processed/02_translated_source/source_train_augmented.csv --val-csv data/processed/01_domain_split/source_val.csv --test-csv data/processed/01_domain_split/target_test.csv --out-dir experiments/outputs/classifier_cyclegan_augmented --checkpoint-dir experiments/checkpoints --checkpoint-name classifier_cyclegan_augmented_best_model.pt --epochs 20 --batch-size 8
 \end{lstlisting}
 
-Output: \texttt{experiments/outputs/classifier\_cyclegan\_augmented/metrics.json}.
+Output: \path{experiments/outputs/classifier_cyclegan_augmented/metrics.json}.
 
 \subsection{VAE scanner signatures}
 
@@ -972,11 +970,11 @@ python src/datasets/build_augmented_train.py --source-csv data/processed/03_vae_
 python src/training/train_classifier.py --train-csv data/processed/04_signature_gan_augmented/source_train_signature_gan_augmented.csv --val-csv data/processed/01_domain_split/source_val.csv --test-csv data/processed/01_domain_split/target_test.csv --out-dir experiments/outputs/classifier_signature_gan_augmented --checkpoint-dir experiments/checkpoints --checkpoint-name classifier_signature_gan_augmented_best_model.pt --epochs 20 --batch-size 8
 \end{lstlisting}
 
-Output: \texttt{experiments/outputs/classifier\_signature\_gan\_augmented/metrics.json}. Questo e' il modello indicato nelle tabelle come VAE+GAN-augmented.
+Output: \path{experiments/outputs/classifier_signature_gan_augmented/metrics.json}. Questo e' il modello indicato nelle tabelle come VAE+GAN-augmented.
 
-\subsection{Ramo AdaIN}
+\subsection{Ramo AdaIN predisposto}
 
-Il ramo AdaIN segue la stessa logica del VAE, ma trasferisce statistiche di feature invece di spostare vettori latenti globali. Nella run sincronizzata il relativo \texttt{metrics.json} e' stato prodotto ed e' incluso nel confronto finale.
+Il ramo AdaIN segue la stessa logica del VAE, ma trasferisce statistiche di feature invece di spostare vettori latenti globali. Il classificatore AdaIN+GAN e' confrontabile solo quando il relativo \texttt{metrics.json} viene prodotto.
 
 \begin{lstlisting}[language=bash]
 python src/training/train_adain_signature.py --train-csv data/processed/01_domain_split/source_train.csv --out-dir experiments/outputs/adain_signature --checkpoint-dir experiments/checkpoints --checkpoint-name adain_signature.pt --epochs 40 --batch-size 8
@@ -988,14 +986,14 @@ python src/datasets/build_augmented_train.py --source-csv data/processed/05_adai
 python src/training/train_classifier.py --train-csv data/processed/06_adain_gan_augmented/source_train_adain_gan_augmented.csv --val-csv data/processed/01_domain_split/source_val.csv --test-csv data/processed/01_domain_split/target_test.csv --out-dir experiments/outputs/classifier_adain_gan_augmented --checkpoint-dir experiments/checkpoints --checkpoint-name classifier_adain_gan_augmented_best_model.pt --epochs 20 --batch-size 8
 \end{lstlisting}
 
-\subsection{Valutazione e figure in \texttt{figures/}}
+\subsection{Valutazione e figure in \texttt{docs/figures/}}
 
-La valutazione a due modelli genera \texttt{experiments/outputs/evaluation/summary.md}. La valutazione multi-modello genera \texttt{experiments/outputs/evaluation\_multi/summary.md} e il grafico in \texttt{figures/08.png}; nella run sincronizzata e' presente anche \texttt{figures/multi\_model\_accuracy\_f1.png}. Tutte le nuove figure devono rimanere nella cartella \texttt{figures/}, cosi' la relazione puo' includerle con un path unico.
+La valutazione a due modelli genera \path{experiments/outputs/evaluation/summary.md}. La valutazione multi-modello genera \path{experiments/outputs/evaluation_multi/summary.md} e il grafico \path{docs/figures/08.png}. Tutte le figure usate dal report devono rimanere nella cartella \path{docs/figures/}, cosi' la relazione puo' includerle con un path unico.
 
 \begin{lstlisting}[language=bash]
-python src/evaluation/evaluate_pipeline.py --baseline experiments/outputs/classifier_source_only/metrics.json --augmented experiments/outputs/classifier_cyclegan_augmented/metrics.json --out-dir experiments/outputs/evaluation --figures-dir figures
+python src/evaluation/evaluate_pipeline.py --baseline experiments/outputs/classifier_source_only/metrics.json --augmented experiments/outputs/classifier_cyclegan_augmented/metrics.json --out-dir experiments/outputs/evaluation --figures-dir docs/figures
 
-python src/evaluation/evaluate_multi_pipeline.py --model source_only=experiments/outputs/classifier_source_only/metrics.json --model cyclegan_augmented=experiments/outputs/classifier_cyclegan_augmented/metrics.json --model vae_gan_augmented=experiments/outputs/classifier_signature_gan_augmented/metrics.json --model adain_gan_augmented=experiments/outputs/classifier_adain_gan_augmented/metrics.json --out-dir experiments/outputs/evaluation_multi --figures-dir figures
+python src/evaluation/evaluate_multi_pipeline.py --model source_only=experiments/outputs/classifier_source_only/metrics.json --model cyclegan_augmented=experiments/outputs/classifier_cyclegan_augmented/metrics.json --model vae_gan_augmented=experiments/outputs/classifier_signature_gan_augmented/metrics.json --model adain_gan_augmented=experiments/outputs/classifier_adain_gan_augmented/metrics.json --out-dir experiments/outputs/evaluation_multi --figures-dir docs/figures
 \end{lstlisting}
 
 Per leggere i risultati:
@@ -1003,12 +1001,9 @@ Per leggere i risultati:
 \begin{lstlisting}[language=bash]
 cat experiments/outputs/evaluation/summary.md
 cat experiments/outputs/evaluation_multi/summary.md
-ls -lh figures
+ls -lh docs/figures
 \end{lstlisting}
 
-\section{Dichiarazione sull'uso di strumenti AI}
-
-Durante lo sviluppo sono stati usati strumenti di assistenza AI per supportare attivita' di debugging, generazione di boilerplate, documentazione tecnica e organizzazione della relazione. Le decisioni progettuali, l'esecuzione degli esperimenti e la responsabilita' del risultato rimangono a carico del gruppo.
 
 \begin{thebibliography}{9}
 
