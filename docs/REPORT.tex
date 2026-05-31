@@ -685,6 +685,8 @@ Le Figure~\ref{fig:scanner_augmentation_examples} e~\ref{fig:scanner_change_maps
     \label{fig:scanner_change_maps}
 \end{figure}
 
+Nella Figura~\ref{fig:scanner_change_maps} e' normale che le mappe associate al VAE appaiano quasi nere. Quelle immagini non sono nuove slice anatomiche, ma mappe di differenza assoluta fra la slice originale e la versione residuale generata dal VAE. Poiche' la generazione residuale e' volutamente conservativa, la perturbazione \(\lambda(Decoder(z')-Decoder(z))\) ha intensita' bassa e modifica soprattutto dettagli di contrasto o stile scanner. Quando questi valori piccoli vengono visualizzati su scala d'immagine, molti pixel restano vicini a zero e quindi appaiono neri. Questo indica che il VAE sta applicando cambiamenti limitati, non che l'immagine sia vuota o che la generazione sia fallita.
+
 \section{Discussione dei risultati}
 
 Il risultato principale della pipeline finale e' che AdaIN+GAN e' il modello migliore sul produttore non visto: accuracy 0.7143 e macro-F1 0.6500. Il baseline source-only ottiene accuracy 0.6571 e macro-F1 0.3966, con un comportamento sbilanciato verso la classe healthy; VAE+GAN resta vicino al baseline in accuracy, ma non in macro-F1; CycleGAN-augmented migliora leggermente la macro-F1 rispetto al baseline, ma perde molta accuracy. Questo indica che la strategia piu' efficace nella run finale e' il trasferimento di statistiche AdaIN combinato con le traduzioni GAN.
