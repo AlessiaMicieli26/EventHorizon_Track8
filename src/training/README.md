@@ -14,6 +14,22 @@ python src/training/train_classifier.py \
   --checkpoint-name classifier_source_only_best_model.pt
 ```
 
+Target oracle classifier:
+
+```bash
+python src/training/train_classifier.py \
+  --train-csv data/processed/01_domain_split/target_test.csv \
+  --val-csv data/processed/01_domain_split/target_test.csv \
+  --test-csv data/processed/01_domain_split/target_test.csv \
+  --out-dir experiments/outputs/classifier_target_oracle \
+  --checkpoint-dir experiments/checkpoints \
+  --checkpoint-name classifier_target_oracle_best_model.pt
+```
+
+This run intentionally trains and tests on the same labeled target split. Use it only as an
+oracle upper-bound/control when measuring the gap between domain-adaptation methods and a
+target-supervised classifier.
+
 CycleGAN scanner adaptation:
 
 ```bash

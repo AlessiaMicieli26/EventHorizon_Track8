@@ -87,6 +87,17 @@ run_step classifier_source_only \
     --epochs "${CLASSIFIER_EPOCHS}" \
     --batch-size "${CLASSIFIER_BATCH_SIZE}"
 
+run_step classifier_target_oracle \
+  "${PYTHON_BIN}" src/training/train_classifier.py \
+    --train-csv data/processed/01_domain_split/target_test.csv \
+    --val-csv data/processed/01_domain_split/target_test.csv \
+    --test-csv data/processed/01_domain_split/target_test.csv \
+    --out-dir experiments/outputs/classifier_target_oracle \
+    --checkpoint-dir experiments/checkpoints \
+    --checkpoint-name classifier_target_oracle_best_model.pt \
+    --epochs "${CLASSIFIER_EPOCHS}" \
+    --batch-size "${CLASSIFIER_BATCH_SIZE}"
+
 if [[ "${RUN_CYCLEGAN}" == "1" || ! -f experiments/checkpoints/cyclegan_generator_source_to_target.pt ]]; then
   run_step train_cyclegan \
     "${PYTHON_BIN}" src/training/train_cyclegan.py \
@@ -196,6 +207,7 @@ run_step classifier_adain_gan_augmented \
 run_step evaluate_multi \
   "${PYTHON_BIN}" src/evaluation/evaluate_multi_pipeline.py \
     --model source_only=experiments/outputs/classifier_source_only/metrics.json \
+    --model target_oracle=experiments/outputs/classifier_target_oracle/metrics.json \
     --model cyclegan_augmented=experiments/outputs/classifier_cyclegan_augmented/metrics.json \
     --model vae_gan_augmented=experiments/outputs/classifier_signature_gan_augmented/metrics.json \
     --model adain_gan_augmented=experiments/outputs/classifier_adain_gan_augmented/metrics.json \

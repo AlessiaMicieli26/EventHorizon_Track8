@@ -124,7 +124,31 @@ The output metric file is:
 experiments/outputs/classifier_source_only/metrics.json
 ```
 
-### 4. Train CycleGAN Scanner Adapter
+### 4. Train Target Oracle Baseline
+
+The target oracle trains, validates, and tests on the same target-domain test CSV. This is
+intentionally not a deployment setting: it is a leakage-based upper-bound/control that shows how
+well the classifier can fit the target distribution when target labels are available.
+
+```bash
+python src/training/train_classifier.py \
+  --train-csv data/processed/01_domain_split/target_test.csv \
+  --val-csv data/processed/01_domain_split/target_test.csv \
+  --test-csv data/processed/01_domain_split/target_test.csv \
+  --out-dir experiments/outputs/classifier_target_oracle \
+  --checkpoint-dir experiments/checkpoints \
+  --checkpoint-name classifier_target_oracle_best_model.pt \
+  --epochs 20 \
+  --batch-size 8
+```
+
+The output metric file is:
+
+```text
+experiments/outputs/classifier_target_oracle/metrics.json
+```
+
+### 5. Train CycleGAN Scanner Adapter
 
 ```bash
 python src/training/train_cyclegan.py \
@@ -138,7 +162,7 @@ python src/training/train_cyclegan.py \
 
 This trains unpaired source-to-target and target-to-source generators over center MRI slices.
 
-### 5. Translate Source Slices
+### 6. Translate Source Slices
 
 ```bash
 python -m src.training.translate_source \
@@ -147,7 +171,7 @@ python -m src.training.translate_source \
   --out-dir data/processed/02_translated_source
 ```
 
-### 6. Build Augmented Training CSV
+### 7. Build Augmented Training CSV
 
 ```bash
 python src/datasets/build_augmented_train.py \
@@ -156,7 +180,7 @@ python src/datasets/build_augmented_train.py \
   --out-csv data/processed/02_translated_source/source_train_augmented.csv
 ```
 
-### 7. Train CycleGAN-Augmented Classifier
+### 8. Train CycleGAN-Augmented Classifier
 
 ```bash
 python src/training/train_classifier.py \
@@ -170,7 +194,7 @@ python src/training/train_classifier.py \
   --batch-size 8
 ```
 
-### 8. Evaluate Experiments
+### 9. Evaluate Experiments
 
 ```bash
 python src/evaluation/evaluate_pipeline.py \
@@ -182,6 +206,7 @@ python src/evaluation/evaluate_pipeline.py \
 Compare these metrics files:
 
 - `experiments/outputs/classifier_source_only/metrics.json`
+- `experiments/outputs/classifier_target_oracle/metrics.json`
 - `experiments/outputs/classifier_cyclegan_augmented/metrics.json`
 
 Evaluation summaries are saved to:

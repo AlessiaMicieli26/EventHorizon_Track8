@@ -8,6 +8,14 @@
     "delta_macro_f1_vs_first":0.0
   },
   {
+    "model":"target_oracle",
+    "accuracy":1.0,
+    "macro_f1":1.0,
+    "metrics_path":"experiments\/outputs\/classifier_target_oracle\/metrics.json",
+    "delta_accuracy_vs_first":0.3428571429,
+    "delta_macro_f1_vs_first":0.6034482759
+  },
+  {
     "model":"cyclegan_augmented",
     "accuracy":0.4285714286,
     "macro_f1":0.4281045752,
