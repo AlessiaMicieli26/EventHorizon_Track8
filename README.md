@@ -5,8 +5,8 @@
 
 ## Group and Project Information
 
-- **Group ID**: TBD
-- **Project ID**: TBD
+- **Group ID**: EventHorizon - ALessia Micieli
+- **Project ID**: Track-8
 
 ## Project Description
 
