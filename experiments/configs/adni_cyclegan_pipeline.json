@@ -1,0 +1,31 @@
+{
+  "data": {
+    "image_collection_csvs": [
+      "data/ADNI1_Annual_2_Yr_3T_5_26_2026.csv",
+      "data/ADNI1_Complete_3Yr_3T_5_29_2026.csv"
+    ],
+    "nifti_root": "data/raw/nifti",
+    "metadata_root": "data/raw/metadata",
+    "prepared_dir": "data/processed/00_prepared",
+    "domain_split_dir": "data/processed/01_domain_split",
+    "translated_source_dir": "data/processed/02_translated_source",
+    "field": "3T",
+    "label_mode": "cn_vs_ad"
+  },
+  "training": {
+    "classifier_epochs": 20,
+    "classifier_batch_size": 8,
+    "classifier_lr": 0.001,
+    "cyclegan_epochs": 30,
+    "cyclegan_batch_size": 4,
+    "cyclegan_lr": 0.0002
+  },
+  "outputs": {
+    "source_only": "experiments/outputs/classifier_source_only",
+    "cyclegan": "experiments/outputs/cyclegan_scanner",
+    "cyclegan_augmented": "experiments/outputs/classifier_cyclegan_augmented",
+    "evaluation": "experiments/outputs/evaluation",
+    "checkpoints": "experiments/checkpoints",
+    "logs": "experiments/logs"
+  }
+}
